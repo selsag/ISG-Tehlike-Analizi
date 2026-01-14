@@ -1,9 +1,33 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { FormData as FormData_Type, Risk } from '../types';
 import { DEFAULT_ALAN_SUGGESTIONS, tehlikeVeriYapisi } from '../constants';
 import { blobToBase64 } from '../utils/helpers';
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+// API Anahtarını güvenli bir şekilde al
+const getApiKey = (): string => {
+    // 1. Mevcut Platform (Otomatik Enjeksiyon)
+    // Bu platformda process.env.API_KEY build sırasında otomatik tanımlanır.
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
+    }
+    
+    // 2. Lokal Geliştirme (Vite .env Desteği)
+    // Projeyi indirip lokalde çalıştıranlar için .env dosyasındaki VITE_API_KEY okunur.
+    try {
+        // @ts-ignore - TypeScript import.meta'yı bazen tanımaz, bu yüzden ignore ediyoruz.
+        if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
+            // @ts-ignore
+            return import.meta.env.VITE_API_KEY;
+        }
+    } catch (e) {
+        // Hata olursa sessizce geç
+    }
+    
+    return '';
+};
+
+const getAI = () => new GoogleGenAI({ apiKey: getApiKey() });
 
 export const fetchAlanSuggestions = async (birim: string): Promise<string[]> => {
     const ai = getAI();

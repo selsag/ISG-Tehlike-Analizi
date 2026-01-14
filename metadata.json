@@ -1,0 +1,7 @@
+{
+  "name": "Tehlike Analiz Formu",
+  "description": "A dynamic and interactive web application for conducting risk assessments using the Fine-Kinney method. It allows users to add, manage, and evaluate risks, attach photo evidence, and export/import the entire assessment. Features include local data persistence, print/PDF generation, and voice-to-text input.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

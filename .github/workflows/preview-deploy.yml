@@ -28,13 +28,28 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v3
+      - name: Deploy to gh-pages (manual git)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git --version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Upload artifact to Pages
-        uses: actions/upload-pages-artifact@v1
-        with:
-          path: ./dist
+          # Clone or prepare gh-pages branch
+          if git ls-remote --exit-code --heads "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" gh-pages; then
+            git clone --depth=1 --branch=gh-pages "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" gh-pages
+          else
+            git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" gh-pages
+            cd gh-pages
+            git checkout --orphan gh-pages || true
+            cd ..
+          fi
 
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+          rm -rf gh-pages/* || true
+          cp -r dist/* gh-pages/
+          cd gh-pages
+          git add -A
+          git commit -m "Preview deploy: ${{ github.sha }}" || echo "No changes to deploy"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" HEAD:gh-pages --force

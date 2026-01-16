@@ -269,6 +269,8 @@ HİYERARŞİ ADIMLARI VE BEKLENEN İÇERİK:
 KURALLAR:
 - Her başlık için en az 1-2 cümlelik, uygulanabilir, net öneriler yaz.
 - "Gerekli önlemler alınmalı" gibi yuvarlak laflar etme. "Kaydırmaz bant yapıştırılmalı" gibi net konuş.
+- ÖNEMLİ: Her önerinin sonuna, ilgili Türk İSG Yönetmeliğine ve maddesine minimal bir atıf ekle (parantez içinde).
+  Örnek: (İş Ekipmanları Yön. Md. 5) veya (Binaların Yangından Korunması Yön. Md. 21).
 - Çıktıyı tam olarak aşağıdaki XML benzeri etiket formatında ver (Parse edeceğim):
 
 <eliminasyon>...</eliminasyon>

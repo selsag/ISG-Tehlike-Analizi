@@ -17,7 +17,6 @@ interface CommonProps {
 }
 
 // --- Rich Text Editor Component ---
-// EXPORT EKLENDİ: Artık başka dosyalardan (SummarySection gibi) çağrılabilir.
 export const RichTextEditor = ({ 
     value, 
     onChange, 
@@ -32,6 +31,7 @@ export const RichTextEditor = ({
     disabled?: boolean;
 }) => {
     const divRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showFontSizePicker, setShowFontSizePicker] = useState(false);
     const [showFontFamilyPicker, setShowFontFamilyPicker] = useState(false);
@@ -68,11 +68,9 @@ export const RichTextEditor = ({
         { label: 'Trebuchet MS', val: 'Trebuchet MS' },
     ];
 
-    // Sync content when value changes externally (e.g. AI or Speech), but preserve cursor if focused
     useEffect(() => {
         if (divRef.current) {
             if (document.activeElement !== divRef.current && divRef.current.innerHTML !== value) {
-                // If value is plain text (no tags) and has newlines, convert to <br> for display
                 if (value && !value.includes('<') && value.includes('\n')) {
                      divRef.current.innerHTML = value.replace(/\n/g, '<br>');
                 } else {
@@ -82,22 +80,25 @@ export const RichTextEditor = ({
         }
     }, [value]);
 
+    // Dışarı tıklama kontrolü (Menüleri kapatmak için)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (showColorPicker || showFontSizePicker || showFontFamilyPicker) {
-                setShowColorPicker(false);
-                setShowFontSizePicker(false);
-                setShowFontFamilyPicker(false);
+            // Eğer tıklanan yer toolbar'ın içindeyse hiçbir şey yapma (kendi toggle mantığı çalışsın)
+            if (toolbarRef.current && toolbarRef.current.contains(event.target as Node)) {
+                return;
             }
+
+            // Toolbar dışına tıklandıysa tüm menüleri kapat
+            setShowColorPicker(false);
+            setShowFontSizePicker(false);
+            setShowFontFamilyPicker(false);
         };
 
-        if (showColorPicker || showFontSizePicker || showFontFamilyPicker) {
-            document.addEventListener('click', handleClickOutside);
-        }
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
-            document.removeEventListener('click', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showColorPicker, showFontSizePicker, showFontFamilyPicker]);
+    }, []);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
         onChange(e.currentTarget.innerHTML);
@@ -111,20 +112,15 @@ export const RichTextEditor = ({
         if (html) {
             const temp = document.createElement('div');
             temp.innerHTML = html;
-            
-            // Clean unwanted styles but keep basic formatting
             const stripStyles = (el: HTMLElement) => {
-                // el.style.fontFamily = ''; // Font ailesine izin veriyoruz artık
                 el.style.lineHeight = 'inherit';
                 el.style.backgroundColor = ''; 
                 el.removeAttribute('class');
             };
-
             temp.querySelectorAll('*').forEach(el => {
                 if (el instanceof HTMLElement) stripStyles(el);
             });
             if(temp instanceof HTMLElement) stripStyles(temp);
-
             document.execCommand('insertHTML', false, temp.innerHTML);
         } else {
             document.execCommand('insertText', false, text);
@@ -136,24 +132,43 @@ export const RichTextEditor = ({
         divRef.current?.focus();
     };
 
-    // Toolbar button click handler: Prevent default to keep focus in editor
-    const onToolMouseDown = (e: React.MouseEvent) => {
+    // Toggle fonksiyonu: Sadece state değiştirir. Focus koruması onMouseDown'da yapılır.
+    const togglePicker = (picker: 'font' | 'size' | 'color') => (e: React.MouseEvent) => {
+        if (picker === 'font') {
+            setShowFontFamilyPicker(prev => !prev);
+            setShowFontSizePicker(false);
+            setShowColorPicker(false);
+        } else if (picker === 'size') {
+            setShowFontSizePicker(prev => !prev);
+            setShowFontFamilyPicker(false);
+            setShowColorPicker(false);
+        } else if (picker === 'color') {
+            setShowColorPicker(prev => !prev);
+            setShowFontSizePicker(false);
+            setShowFontFamilyPicker(false);
+        }
+    };
+
+    // Focus kaybını önlemek için butonlara eklenir
+    const preventFocusLoss = (e: React.MouseEvent) => {
         e.preventDefault();
-        e.stopPropagation(); 
     };
 
     return (
         <div className={`flex flex-col border border-gray-300 rounded overflow-visible bg-white ${disabled ? 'opacity-75' : ''}`}>
             {/* Toolbar */}
             {!disabled && (
-                <div className="flex items-center flex-wrap gap-1 p-1 bg-gray-50 border-b border-gray-200 overflow-visible print:hidden relative z-20">
+                <div ref={toolbarRef} className="flex items-center flex-wrap gap-1 p-1 bg-gray-50 border-b border-gray-200 overflow-visible print:hidden relative z-20">
+                    
                     {/* Grup 1: Yazı Tipi & Boyut */}
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
-                        {/* Font Family Selector */}
+                        
+                        {/* Font Family */}
                         <div className="relative">
                             <button 
-                                onMouseDown={onToolMouseDown}
-                                onClick={() => { setShowFontFamilyPicker(!showFontFamilyPicker); setShowFontSizePicker(false); setShowColorPicker(false); }}
+                                type="button"
+                                onMouseDown={preventFocusLoss}
+                                onClick={togglePicker('font')}
                                 className={`h-7 px-2 hover:bg-gray-200 rounded text-gray-700 flex items-center gap-1 border border-transparent hover:border-gray-300 ${showFontFamilyPicker ? 'bg-gray-200 border-gray-300' : ''}`}
                                 title="Yazı Tipi Seç"
                             >
@@ -162,10 +177,11 @@ export const RichTextEditor = ({
                             </button>
                             
                             {showFontFamilyPicker && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[100] w-[160px] flex flex-col max-h-[250px] overflow-y-auto">
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[1000] w-[160px] flex flex-col max-h-[250px] overflow-y-auto">
                                     {fontFamilies.map(font => (
                                         <button
                                             key={font.val}
+                                            type="button"
                                             onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 execCmd('fontName', font.val);
@@ -181,11 +197,12 @@ export const RichTextEditor = ({
                             )}
                         </div>
 
-                        {/* Font Size Selector */}
+                        {/* Font Size */}
                         <div className="relative">
                             <button 
-                                onMouseDown={onToolMouseDown}
-                                onClick={() => { setShowFontSizePicker(!showFontSizePicker); setShowFontFamilyPicker(false); setShowColorPicker(false); }}
+                                type="button"
+                                onMouseDown={preventFocusLoss}
+                                onClick={togglePicker('size')}
                                 className={`h-7 px-2 hover:bg-gray-200 rounded text-gray-700 flex items-center gap-1 border border-transparent hover:border-gray-300 ${showFontSizePicker ? 'bg-gray-200 border-gray-300' : ''}`}
                                 title="Yazı Boyutu Seç"
                             >
@@ -194,10 +211,11 @@ export const RichTextEditor = ({
                             </button>
                             
                             {showFontSizePicker && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[100] w-[130px] flex flex-col max-h-[250px] overflow-y-auto">
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[1000] w-[130px] flex flex-col max-h-[250px] overflow-y-auto">
                                     {fontSizes.map(size => (
                                         <button
                                             key={size.val}
+                                            type="button"
                                             onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 execCmd('fontSize', size.val);
@@ -218,23 +236,24 @@ export const RichTextEditor = ({
 
                     {/* Grup 2: Formatlama */}
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
-                        <button onMouseDown={onToolMouseDown} onClick={() => execCmd('bold')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Kalın"><IconBold/></button>
-                        <button onMouseDown={onToolMouseDown} onClick={() => execCmd('italic')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="İtalik"><IconItalic/></button>
-                        <button onMouseDown={onToolMouseDown} onClick={() => execCmd('underline')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Altı Çizili"><IconUnderline/></button>
+                        <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('bold'); }} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Kalın"><IconBold/></button>
+                        <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('italic'); }} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="İtalik"><IconItalic/></button>
+                        <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('underline'); }} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Altı Çizili"><IconUnderline/></button>
                     </div>
                     
                     {/* Grup 3: Hizalama */}
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
-                        <button onMouseDown={onToolMouseDown} onClick={() => execCmd('justifyLeft')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Sola Hizala"><IconAlignLeft/></button>
-                        <button onMouseDown={onToolMouseDown} onClick={() => execCmd('justifyCenter')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Ortala"><IconAlignCenter/></button>
-                        <button onMouseDown={onToolMouseDown} onClick={() => execCmd('justifyRight')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Sağa Hizala"><IconAlignRight/></button>
+                        <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('justifyLeft'); }} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Sola Hizala"><IconAlignLeft/></button>
+                        <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('justifyCenter'); }} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Ortala"><IconAlignCenter/></button>
+                        <button type="button" onMouseDown={(e) => { e.preventDefault(); execCmd('justifyRight'); }} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Sağa Hizala"><IconAlignRight/></button>
                     </div>
 
                     {/* Grup 4: Renk */}
                     <div className="relative">
                         <button 
-                            onMouseDown={onToolMouseDown}
-                            onClick={() => { setShowColorPicker(!showColorPicker); setShowFontSizePicker(false); setShowFontFamilyPicker(false); }}
+                            type="button"
+                            onMouseDown={preventFocusLoss}
+                            onClick={togglePicker('color')}
                             className={`h-7 px-2 hover:bg-gray-200 rounded text-gray-700 flex items-center gap-1 border border-transparent hover:border-gray-300 ${showColorPicker ? 'bg-gray-200 border-gray-300' : ''}`}
                             title="Yazı Rengi"
                         >
@@ -244,11 +263,12 @@ export const RichTextEditor = ({
                         </button>
                         
                         {showColorPicker && (
-                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded p-2 z-[100] flex flex-col w-[130px]">
+                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded p-2 z-[1000] flex flex-col w-[130px]">
                                 <div className="grid grid-cols-4 gap-1 mb-2">
                                     {colors.map(color => (
                                         <button
                                             key={color.hex}
+                                            type="button"
                                             onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 execCmd('foreColor', color.hex);
@@ -261,6 +281,7 @@ export const RichTextEditor = ({
                                     ))}
                                 </div>
                                 <button
+                                    type="button"
                                     onMouseDown={(e) => {
                                         e.preventDefault();
                                         execCmd('removeFormat');
@@ -284,7 +305,7 @@ export const RichTextEditor = ({
                 className={`overflow-y-auto outline-none p-2 min-h-[56px] ${className} ${!value ? 'empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400' : ''}`}
                 {...{ "data-placeholder": placeholder }}
                 spellCheck={false}
-                style={{ minHeight: '80px' }} // Toolbar geldiği için biraz daha yüksek olsun
+                style={{ minHeight: '80px' }} 
             />
         </div>
     );

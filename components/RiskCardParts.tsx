@@ -32,6 +32,7 @@ export const RichTextEditor = ({
     disabled?: boolean;
 }) => {
     const divRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showFontSizePicker, setShowFontSizePicker] = useState(false);
     const [showFontFamilyPicker, setShowFontFamilyPicker] = useState(false);
@@ -82,22 +83,25 @@ export const RichTextEditor = ({
         }
     }, [value]);
 
+    // Dışarı tıklama kontrolü (Menüleri kapatmak için)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (showColorPicker || showFontSizePicker || showFontFamilyPicker) {
-                setShowColorPicker(false);
-                setShowFontSizePicker(false);
-                setShowFontFamilyPicker(false);
+            // Eğer tıklanan yer toolbar'ın içindeyse hiçbir şey yapma (kendi toggle mantığı çalışsın)
+            if (toolbarRef.current && toolbarRef.current.contains(event.target as Node)) {
+                return;
             }
+
+            // Toolbar dışına tıklandıysa tüm menüleri kapat
+            setShowColorPicker(false);
+            setShowFontSizePicker(false);
+            setShowFontFamilyPicker(false);
         };
 
-        if (showColorPicker || showFontSizePicker || showFontFamilyPicker) {
-            document.addEventListener('click', handleClickOutside);
-        }
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
-            document.removeEventListener('click', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showColorPicker, showFontSizePicker, showFontFamilyPicker]);
+    }, []);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
         onChange(e.currentTarget.innerHTML);
@@ -146,7 +150,7 @@ export const RichTextEditor = ({
         <div className={`flex flex-col border border-gray-300 rounded overflow-visible bg-white ${disabled ? 'opacity-75' : ''}`}>
             {/* Toolbar */}
             {!disabled && (
-                <div className="flex items-center flex-wrap gap-1 p-1 bg-gray-50 border-b border-gray-200 overflow-visible print:hidden relative z-20">
+                <div ref={toolbarRef} className="flex items-center flex-wrap gap-1 p-1 bg-gray-50 border-b border-gray-200 overflow-visible print:hidden relative z-20">
                     {/* Grup 1: Yazı Tipi & Boyut */}
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
                         {/* Font Family Selector */}
@@ -162,7 +166,7 @@ export const RichTextEditor = ({
                             </button>
                             
                             {showFontFamilyPicker && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[100] w-[160px] flex flex-col max-h-[250px] overflow-y-auto">
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-50 w-[160px] flex flex-col max-h-[250px] overflow-y-auto">
                                     {fontFamilies.map(font => (
                                         <button
                                             key={font.val}
@@ -194,7 +198,7 @@ export const RichTextEditor = ({
                             </button>
                             
                             {showFontSizePicker && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[100] w-[130px] flex flex-col max-h-[250px] overflow-y-auto">
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-50 w-[130px] flex flex-col max-h-[250px] overflow-y-auto">
                                     {fontSizes.map(size => (
                                         <button
                                             key={size.val}
@@ -244,7 +248,7 @@ export const RichTextEditor = ({
                         </button>
                         
                         {showColorPicker && (
-                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded p-2 z-[100] flex flex-col w-[130px]">
+                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded p-2 z-50 flex flex-col w-[130px]">
                                 <div className="grid grid-cols-4 gap-1 mb-2">
                                     {colors.map(color => (
                                         <button

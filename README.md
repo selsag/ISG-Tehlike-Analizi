@@ -50,10 +50,10 @@ Uygulamanın AI özelliklerinin çalışabilmesi için geçerli bir **Google Gem
 
 1.  [Google AI Studio](https://aistudio.google.com/) adresine gidin ve ücretsiz bir API anahtarı (API Key) oluşturun.
 2.  Projenin ana dizininde (package.json dosyasının olduğu yer) `.env` adında yeni bir dosya oluşturun.
-3.  `.env` dosyasının içine aşağıdaki satırı ekleyin ve kendi anahtarınızı kullanın:
+3.  `.env` dosyasının içine aşağıdaki satırı ekleyin ve `AIzaSy...` kısmını kendi anahtarınızla değiştirin:
 
 ```env
-VITE_API_KEY=your_api_key_here
+VITE_API_KEY=AIzaSySizinGizliAnahtarinizBurayaYazilacak
 ```
 
 > ⚠️ **Uyarı:** `.env` dosyanızı asla GitHub'a yüklemeyin veya başkalarıyla paylaşmayın. Projedeki `.gitignore` dosyası bu dosyanın yüklenmesini otomatik olarak engeller.

@@ -211,10 +211,10 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
     const generateControlMeasures = async () => {
         if (!risk.tehlikeAciklama) { showAlert("Eksik", "Tehlike açıklaması girin."); return; }
         setIsGeneratingMeasures(true);
-        const fields: string[] = ['eliminasyon', 'ikame', 'muhendislik', 'idari', 'kkd'];
+        const fields: (keyof OnerilecekOnlemler & string)[] = ['eliminasyon', 'ikame', 'muhendislik', 'idari', 'kkd'];
         try {
             const stream = await AI.fetchControlMeasuresStream(risk);
-            let buffer = ''; let currentField: keyof OnerilecekOnlemler | null = null;
+            let buffer = ''; let currentField: (keyof OnerilecekOnlemler & string) | null = null;
             for await (const chunk of stream) {
                 const c = chunk as GenerateContentResponse;
                 buffer += c.text || '';
@@ -222,9 +222,8 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
                     if (!currentField) {
                         const nextField = fields.find(f => buffer.includes(`<${f}>`));
                         if (nextField) {
-                            currentField = nextField as keyof OnerilecekOnlemler; 
-                            const tag = `<${nextField}>`;
-                            buffer = buffer.substring(buffer.indexOf(tag) + tag.length); 
+                            currentField = nextField; 
+                            buffer = buffer.substring(buffer.indexOf(`<${nextField}>`) + nextField.length + 2); 
                         } else break;
                     }
                     if (currentField) {
@@ -288,8 +287,8 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
                     <RiskHazard 
                         risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
                         tehlikeData={tehlikeData} aiHazardSuggestions={aiHazardSuggestions} isGeneratingHazards={isGeneratingHazards}
-                        onGenerateHazards={generateHazardSuggestions} 
-                        handleSelectAciklama={handleSelectAciklama} 
+                        onGenerateHazards={generateHazardSuggestions}
+                        handleSelectAciklama={handleSelectAciklama}
                     />
                     <RiskMedia 
                         risk={risk} files={files} isAnalyzingImage={isAnalyzingImage} onAnalyzeImage={analyzeImageForHazards}

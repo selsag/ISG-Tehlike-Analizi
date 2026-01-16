@@ -3,7 +3,8 @@ import React from 'react';
 import {
   Printer, Plus, Trash2, HelpCircle, X, Users, RotateCcw,
   Download, Upload, ChevronUp, Mic, Maximize2, Paperclip, Camera, Image as ImageIcon,
-  Loader2, Lightbulb, Copy
+  Loader2, Lightbulb, Copy, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
+  List, Palette, Type
 } from 'lucide-react';
 
 export const IconPrinter: React.FC = React.memo(() => <Printer className="w-5 h-5" />);
@@ -31,3 +32,14 @@ export const IconLightbulb: React.FC = React.memo(() => <Lightbulb className="w-
 export const IconLoaderSmall: React.FC = React.memo(() => <Loader2 className="w-4 h-4 animate-spin" />);
 export const IconCopy: React.FC = React.memo(() => <Copy className="w-6 h-6 stroke-current" />);
 export const IconCopySmall: React.FC = React.memo(() => <Copy className="w-4 h-4" />);
+
+// Text Editor Icons
+export const IconBold: React.FC = React.memo(() => <Bold className="w-4 h-4" />);
+export const IconItalic: React.FC = React.memo(() => <Italic className="w-4 h-4" />);
+export const IconUnderline: React.FC = React.memo(() => <Underline className="w-4 h-4" />);
+export const IconAlignLeft: React.FC = React.memo(() => <AlignLeft className="w-4 h-4" />);
+export const IconAlignCenter: React.FC = React.memo(() => <AlignCenter className="w-4 h-4" />);
+export const IconAlignRight: React.FC = React.memo(() => <AlignRight className="w-4 h-4" />);
+export const IconList: React.FC = React.memo(() => <List className="w-4 h-4" />);
+export const IconPalette: React.FC = React.memo(() => <Palette className="w-4 h-4" />);
+export const IconType: React.FC = React.memo(() => <Type className="w-4 h-4" />);

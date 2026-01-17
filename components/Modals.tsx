@@ -24,8 +24,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
             return;
         }
         
-        if (!apiKey.startsWith('AIzaSy')) {
-            setError('Geçersiz API anahtarı formatı. Google Gemini API anahtarı "AIzaSy" ile başlamalıdır.');
+        // Basic length check - Google API keys are typically 39 characters
+        if (apiKey.trim().length < 30) {
+            setError('API anahtarı çok kısa görünüyor. Lütfen geçerli bir Google Gemini API anahtarı girin.');
             return;
         }
 

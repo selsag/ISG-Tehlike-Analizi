@@ -174,7 +174,16 @@ const App: React.FC = () => {
     reader.readAsText(file); e.target.value = '';
   };
   
-  const handleReset = () => showConfirmation({ title: 'Sıfırla', message: 'Tüm veriler silinecek.', confirmText: 'Sıfırla', onConfirm: async () => { await DB.clearDB(); localStorage.clear(); window.location.reload(); }});
+  const handleReset = () => showConfirmation({ title: 'Sıfırla', message: 'Tüm veriler silinecek. API anahtarınız korunacak.', confirmText: 'Sıfırla', onConfirm: async () => { 
+    await DB.clearDB(); 
+    // Clear localStorage except API key
+    const apiKey = localStorage.getItem('gemini_api_key');
+    localStorage.clear(); 
+    if (apiKey) {
+      localStorage.setItem('gemini_api_key', apiKey);
+    }
+    window.location.reload(); 
+  }});
   
   const handleOpenApiKeyModal = () => {
     setIsApiKeyModalOpen(true);

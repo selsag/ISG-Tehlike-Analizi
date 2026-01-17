@@ -4,13 +4,13 @@ import * as DB from './services/db';
 import * as AI from './services/ai';
 import { 
     IconPlus, IconUsers, IconRotateCcw, IconDownload,
-    IconUpload, IconChevronUp, IconMic, IconCopySmall, IconLoader
+    IconUpload, IconChevronUp, IconMic, IconCopySmall, IconLoader, IconKey
 } from './components/Icons';
 import RiskCard from './components/RiskCard';
 import RiskStats from './components/RiskStats';
 import SummarySection from './components/SummarySection';
 import PrintManager from './components/PrintManager';
-import { InfoModal, ImagePreviewModal, ConfirmationModal } from './components/Modals';
+import { InfoModal, ImagePreviewModal, ConfirmationModal, ApiKeyModal } from './components/Modals';
 import { useRiskData } from './hooks/useRiskData';
 import { useSpeech } from './hooks/useSpeech';
 import { ModalState, FileRecord } from './types';
@@ -19,6 +19,8 @@ import { blobToBase64, base64ToFile, resizeImage } from './utils/helpers';
 const App: React.FC = () => {
   const [modalState, setModalState] = useState<ModalState>({ isOpen: false, title: '', message: '', onConfirm: () => {}, });
   const [activeInfoModal, setActiveInfoModal] = useState<string | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isInitialApiKeyCheck, setIsInitialApiKeyCheck] = useState(true);
   
   // Preview state now holds both file and a context title
   const [previewData, setPreviewData] = useState<{ file: FileRecord, title: string } | null>(null);
@@ -31,6 +33,20 @@ const App: React.FC = () => {
   const [dataVersion, setDataVersion] = useState(0);
 
   const riskListRef = useRef<HTMLDivElement>(null);
+
+  // Check for API key on mount
+  useEffect(() => {
+    if (!AI.hasApiKey()) {
+      setIsApiKeyModalOpen(true);
+    } else {
+      setIsInitialApiKeyCheck(false);
+    }
+  }, []);
+
+  const handleSaveApiKey = useCallback((apiKey: string) => {
+    AI.setApiKey(apiKey);
+    setIsInitialApiKeyCheck(false);
+  }, []);
 
   const hideModal = useCallback(() => setModalState(prev => ({ ...prev, isOpen: false })), []);
   const showConfirmation = useCallback((config: Omit<ModalState, 'isOpen'>) => {
@@ -160,9 +176,20 @@ const App: React.FC = () => {
   
   const handleReset = () => showConfirmation({ title: 'Sıfırla', message: 'Tüm veriler silinecek.', confirmText: 'Sıfırla', onConfirm: async () => { await DB.clearDB(); localStorage.clear(); window.location.reload(); }});
   
+  const handleOpenApiKeyModal = () => {
+    setIsApiKeyModalOpen(true);
+  };
+  
   return (
     <>
       <InfoModal infoKey={activeInfoModal} onClose={() => setActiveInfoModal(null)} />
+      
+      <ApiKeyModal 
+        isOpen={isApiKeyModalOpen} 
+        onClose={() => setIsApiKeyModalOpen(false)} 
+        onSave={handleSaveApiKey}
+        required={isInitialApiKeyCheck}
+      />
       
       <ImagePreviewModal 
         fileRecord={previewData?.file ?? null} 
@@ -176,6 +203,7 @@ const App: React.FC = () => {
 
       <div className="p-2 md:p-4">
         <div className="print:hidden mb-4 flex flex-wrap gap-2 justify-end">
+            <button onClick={handleOpenApiKeyModal} className="w-11 h-11 bg-blue-600 text-white rounded hover:bg-blue-700 flex justify-center items-center" title="API Anahtarı Ayarları"><IconKey /></button>
             <button onClick={handleReset} className="w-11 h-11 bg-red-600 text-white rounded hover:bg-red-700 flex justify-center items-center" title="Sıfırla"><IconRotateCcw /></button>
             <button onClick={handleExport} disabled={isExporting} className="w-11 h-11 bg-green-600 text-white rounded hover:bg-green-700 flex justify-center items-center disabled:opacity-50 disabled:cursor-wait" title="Yedek İndir (JSON)">
                 {isExporting ? <IconLoader /> : <IconDownload />}

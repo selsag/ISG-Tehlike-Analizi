@@ -6,14 +6,9 @@ import { blobToBase64 } from '../utils/helpers';
 
 // API Anahtarını güvenli bir şekilde al
 const getApiKey = (): string => {
-    // 1. Mevcut Platform (Otomatik Enjeksiyon)
-    // Bu platformda process.env.API_KEY build sırasında otomatik tanımlanır.
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-        return process.env.API_KEY;
-    }
-    
-    // 2. Lokal Geliştirme (Vite .env Desteği)
-    // Projeyi indirip lokalde çalıştıranlar için .env dosyasındaki VITE_API_KEY okunur.
+    // Lokal Geliştirme (Vite .env Desteği)
+    // Sadece geliştirme ortamında .env dosyasındaki VITE_API_KEY okunur.
+    // ÖNEMLİ: Production build'lerinde API anahtarı ASLA gömülmez!
     try {
         // @ts-ignore - TypeScript import.meta'yı bazen tanımaz, bu yüzden ignore ediyoruz.
         if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {

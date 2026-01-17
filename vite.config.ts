@@ -6,8 +6,11 @@ import react from '@vitejs/plugin-react';
 // This configuration has been updated to remove the insecure 'define' option
 // that was previously injecting API keys into the bundled JavaScript.
 // 
-// Users should provide their own API keys at runtime through the application UI
-// or via environment variables for local development only (never in production builds).
+// For local development, users can use a .env file with VITE_API_KEY.
+// For production, consider implementing one of these secure approaches:
+// - A backend API service that keeps API keys server-side
+// - Allow users to provide their own API keys through the application UI
+// - Use environment-specific configurations that don't embed secrets
 
 export default defineConfig({
   server: {

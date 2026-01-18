@@ -36,11 +36,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
         onClose();
     };
 
-    const handleCancel = () => {
-        if (required) {
-            setError('Uygulamayı kullanmak için API anahtarı gereklidir');
-            return;
-        }
+    const handleSkip = () => {
         setApiKey('');
         setError('');
         onClose();
@@ -74,7 +70,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
                         </div>
 
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            API Anahtarı {required && <span className="text-red-500">*</span>}
+                            API Anahtarı (İsteğe Bağlı)
                         </label>
                         <input
                             type="password"
@@ -103,17 +99,21 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
                             <strong>⚠️ Güvenlik Notu:</strong> API anahtarınız sadece tarayıcınızda saklanır ve hiçbir sunucuya gönderilmez.
                         </p>
                     </div>
+                    
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                        <p className="text-xs text-gray-700">
+                            <strong>💡 İpucu:</strong> API anahtarı olmadan da uygulamayı kullanabilirsiniz. Sadece AI destekli özellikler (öneri oluşturma, otomatik doldurma vb.) çalışmayacaktır. Daha sonra header'daki 🔑 butonu ile API anahtarınızı ekleyebilirsiniz.
+                        </p>
+                    </div>
                 </div>
                 
                 <div className="bg-gray-50 px-6 py-3 flex justify-end items-center gap-3 rounded-b-lg">
-                    {!required && (
-                        <button 
-                            onClick={handleCancel} 
-                            className="px-4 py-2 text-sm font-semibold bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
-                        >
-                            İptal
-                        </button>
-                    )}
+                    <button 
+                        onClick={handleSkip} 
+                        className="px-4 py-2 text-sm font-semibold bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    >
+                        Daha Sonra
+                    </button>
                     <button 
                         onClick={handleSave}
                         className="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700"

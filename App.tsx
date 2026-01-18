@@ -48,6 +48,11 @@ const App: React.FC = () => {
     setIsInitialApiKeyCheck(false);
   }, []);
 
+  const handleCloseApiKeyModal = useCallback(() => {
+    setIsApiKeyModalOpen(false);
+    setIsInitialApiKeyCheck(false);
+  }, []);
+
   const hideModal = useCallback(() => setModalState(prev => ({ ...prev, isOpen: false })), []);
   const showConfirmation = useCallback((config: Omit<ModalState, 'isOpen'>) => {
     setModalState({ ...config, isOpen: true, onConfirm: () => { config.onConfirm(); hideModal(); }, cancelText: config.cancelText ?? 'İptal' });
@@ -195,9 +200,8 @@ const App: React.FC = () => {
       
       <ApiKeyModal 
         isOpen={isApiKeyModalOpen} 
-        onClose={() => setIsApiKeyModalOpen(false)} 
+        onClose={handleCloseApiKeyModal} 
         onSave={handleSaveApiKey}
-        required={isInitialApiKeyCheck}
       />
       
       <ImagePreviewModal 

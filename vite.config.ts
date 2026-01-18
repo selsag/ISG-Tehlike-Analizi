@@ -13,6 +13,7 @@ import react from '@vitejs/plugin-react';
 // - Use environment-specific configurations that don't embed secrets
 
 export default defineConfig({
+  base: '/ISG-Tehlike-Analizi/',
   server: {
     port: 3000,
     host: '0.0.0.0',

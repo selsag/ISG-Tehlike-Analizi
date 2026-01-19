@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { FormData as FormData_Type, RiskTeamMember, SpeechTarget } from '../types';
-import { IconHelp, IconLoaderSmall, IconLightbulb, IconMic } from './Icons';
+import { IconHelp, IconLoaderSmall, IconLightbulb, IconMic, IconSettings } from './Icons';
 import { RichTextEditor } from './RiskCardParts';
 
 interface SummarySectionProps {
@@ -13,10 +13,11 @@ interface SummarySectionProps {
     onShowInfo: (key: string) => void;
     onToggleSpeech: (target: NonNullable<SpeechTarget>) => void;
     activeSpeechTarget: SpeechTarget;
+    onEditPrompt?: () => void;
 }
 
 const SummarySection: React.FC<SummarySectionProps> = ({
-    formData, riskEkibi, onUpdateFormData, onGenerateSummary, isGeneratingSummary, onShowInfo, onToggleSpeech, activeSpeechTarget
+    formData, riskEkibi, onUpdateFormData, onGenerateSummary, isGeneratingSummary, onShowInfo, onToggleSpeech, activeSpeechTarget, onEditPrompt
 }) => {
     // RichTextEditor kullandığımız için textarea ref'e ve otomatik yükseklik ayarlayan useEffect'e artık gerek yok.
 
@@ -29,6 +30,14 @@ const SummarySection: React.FC<SummarySectionProps> = ({
                         <button type="button" onClick={() => onShowInfo('aiGeneralSummary')} className="text-blue-600 hover:text-blue-800"><IconHelp /></button>
                         <button type="button" onClick={onGenerateSummary} disabled={isGeneratingSummary} className="text-xs font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-wait px-3 py-1 flex items-center gap-1.5">
                             {isGeneratingSummary ? <IconLoaderSmall /> : <IconLightbulb />} <span>Özet Oluştur</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onEditPrompt}
+                            className="flex items-center justify-center w-6 h-6 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 border border-gray-400 transition-colors shadow-sm"
+                            title="AI Prompt Ayarları"
+                        >
+                            <IconSettings />
                         </button>
                     </span>
                 </h3>

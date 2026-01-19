@@ -4,13 +4,13 @@ import * as DB from './services/db';
 import * as AI from './services/ai';
 import { 
     IconPlus, IconUsers, IconRotateCcw, IconDownload,
-    IconUpload, IconChevronUp, IconMic, IconCopySmall, IconLoader
+    IconUpload, IconChevronUp, IconMic, IconCopySmall, IconLoader, IconKey
 } from './components/Icons';
 import RiskCard from './components/RiskCard';
 import RiskStats from './components/RiskStats';
 import SummarySection from './components/SummarySection';
 import PrintManager from './components/PrintManager';
-import { InfoModal, ImagePreviewModal, ConfirmationModal } from './components/Modals';
+import { InfoModal, ImagePreviewModal, ConfirmationModal, PromptEditorModal, ApiKeyModal } from './components/Modals';
 import { useRiskData } from './hooks/useRiskData';
 import { useSpeech } from './hooks/useSpeech';
 import { ModalState, FileRecord } from './types';
@@ -20,6 +20,15 @@ const App: React.FC = () => {
   const [modalState, setModalState] = useState<ModalState>({ isOpen: false, title: '', message: '', onConfirm: () => {}, });
   const [activeInfoModal, setActiveInfoModal] = useState<string | null>(null);
   
+  // Prompt Editing for Summary
+  const [isSummaryPromptEditorOpen, setIsSummaryPromptEditorOpen] = useState(false);
+  const [summaryPrompt, setSummaryPrompt] = useState<string>(() => {
+      return localStorage.getItem('summaryPromptTemplate') || AI.DEFAULT_SUMMARY_PROMPT_TEMPLATE;
+  });
+
+  // API Key Modal State
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+
   // Preview state now holds both file and a context title
   const [previewData, setPreviewData] = useState<{ file: FileRecord, title: string } | null>(null);
   
@@ -43,28 +52,70 @@ const App: React.FC = () => {
   const riskData = useRiskData(showAlert, showConfirmation);
   const { speechTarget, toggleSpeech } = useSpeech(riskData.handleSpeechResult, (err) => showAlert("Hata", err));
 
+  // Initial API Key Check
+  useEffect(() => {
+      const apiKey = AI.getApiKey();
+      if (!apiKey) {
+          setIsApiKeyModalOpen(true);
+      }
+  }, []);
+
   const prevRisklerLength = useRef(riskData.riskler.length);
   useEffect(() => {
     if (riskData.riskler.length > prevRisklerLength.current) riskListRef.current?.firstElementChild?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     prevRisklerLength.current = riskData.riskler.length;
   }, [riskData.riskler]);
 
+  const handleAIError = useCallback((error: any, defaultMsg: string) => {
+      if (AI.isAuthOrQuotaError(error)) {
+          // Check if we are using a custom key
+          const localKey = localStorage.getItem('user_gemini_api_key');
+          const hasCustomKey = localKey && localKey.trim() !== '';
+
+          if (hasCustomKey) {
+             showAlert("API Hatası", "Girdiğiniz API Anahtarı ile ilgili bir yetki veya kota sorunu oluştu. Lütfen anahtarınızı kontrol edin.");
+          } else {
+             showAlert("Sistem Kotası", "Sistemin ücretsiz API kullanım kotası dolmuş olabilir. Lütfen kendi API anahtarınızı girerek devam edin.");
+          }
+          setIsApiKeyModalOpen(true);
+      } else {
+          showAlert("Hata", defaultMsg);
+      }
+  }, [showAlert]);
+
   const generateAlanSuggestions = useCallback(async () => {
     if (!riskData.formData.birim) { showAlert("Eksik", "Birim girin."); return; }
     setIsGeneratingAlanSuggestions(true);
-    try { riskData.setAlanSuggestions(await AI.fetchAlanSuggestions(riskData.formData.birim)); } 
-    catch { showAlert("Hata", "Alan önerileri başarısız."); } finally { setIsGeneratingAlanSuggestions(false); }
-  }, [riskData.formData.birim, showAlert, riskData.setAlanSuggestions]);
+    try { 
+        riskData.setAlanSuggestions(await AI.fetchAlanSuggestions(riskData.formData.birim)); 
+    } 
+    catch (e) { 
+        handleAIError(e, "Alan önerileri başarısız.");
+    } finally { 
+        setIsGeneratingAlanSuggestions(false); 
+    }
+  }, [riskData.formData.birim, showAlert, riskData.setAlanSuggestions, handleAIError]);
 
   const generateGeneralSummary = async () => {
     setIsGeneratingSummary(true);
-    try { riskData.updateFormData('genelDegerlendirme', await AI.fetchGeneralSummary(riskData.formData, riskData.riskler)); } 
-    catch { showAlert("Hata", "Özet oluşturulamadı."); } finally { setIsGeneratingSummary(false); }
+    try { 
+        riskData.updateFormData('genelDegerlendirme', await AI.fetchGeneralSummary(riskData.formData, riskData.riskler, summaryPrompt)); 
+    } 
+    catch (e) { 
+        handleAIError(e, "Özet oluşturulamadı."); 
+    } finally { 
+        setIsGeneratingSummary(false); 
+    }
   };
 
   const handleDuplicateFirst = useCallback(() => {
     if (riskData.riskler.length === 0) showAlert("Hata", "Risk yok."); else riskData.duplicateRisk(riskData.riskler[0].id);
   }, [riskData.riskler, riskData.duplicateRisk, showAlert]);
+  
+  const handleSaveSummaryPrompt = (newPrompt: string) => {
+      setSummaryPrompt(newPrompt);
+      localStorage.setItem('summaryPromptTemplate', newPrompt);
+  };
 
   const handleExport = useCallback(async () => {
     setIsExporting(true);
@@ -171,11 +222,26 @@ const App: React.FC = () => {
         onDelete={async (id) => { await DB.deleteFileFromDB(id); if (previewData?.file) setDataVersion(prev => prev + 1); }} 
         showConfirmation={showConfirmation} 
       />
+      
+      <ApiKeyModal 
+        isOpen={isApiKeyModalOpen} 
+        onClose={() => setIsApiKeyModalOpen(false)} 
+      />
+
+      <PromptEditorModal 
+          isOpen={isSummaryPromptEditorOpen}
+          currentPrompt={summaryPrompt}
+          defaultPrompt={AI.DEFAULT_SUMMARY_PROMPT_TEMPLATE}
+          variableHelpText="{birim}, {tehlikeSinifi}, {riskSayisi}, {riskDetaylari}"
+          onSave={handleSaveSummaryPrompt}
+          onClose={() => setIsSummaryPromptEditorOpen(false)}
+      />
 
       <ConfirmationModal isOpen={modalState.isOpen} title={modalState.title} message={modalState.message} onConfirm={modalState.onConfirm} onCancel={hideModal} confirmText={modalState.confirmText} cancelText={modalState.cancelText} />
 
       <div className="p-2 md:p-4">
         <div className="print:hidden mb-4 flex flex-wrap gap-2 justify-end">
+            <button onClick={() => setIsApiKeyModalOpen(true)} className="w-11 h-11 bg-gray-600 text-white rounded hover:bg-gray-700 flex justify-center items-center" title="API Anahtarı Ayarları"><IconKey /></button>
             <button onClick={handleReset} className="w-11 h-11 bg-red-600 text-white rounded hover:bg-red-700 flex justify-center items-center" title="Sıfırla"><IconRotateCcw /></button>
             <button onClick={handleExport} disabled={isExporting} className="w-11 h-11 bg-green-600 text-white rounded hover:bg-green-700 flex justify-center items-center disabled:opacity-50 disabled:cursor-wait" title="Yedek İndir (JSON)">
                 {isExporting ? <IconLoader /> : <IconDownload />}
@@ -249,6 +315,7 @@ const App: React.FC = () => {
                             onToggleSpeech={toggleSpeech} activeSpeechTarget={speechTarget}
                             onUpdateScores={riskData.updateRiskScores} onUpdateMeasures={riskData.updateControlMeasures}
                             showConfirmation={showConfirmation} showAlert={showAlert}
+                            onApiKeyError={() => setIsApiKeyModalOpen(true)}
                             alanSuggestions={riskData.alanSuggestions} isGeneratingAlanSuggestions={isGeneratingAlanSuggestions} onGenerateAlanSuggestions={generateAlanSuggestions}
                             dataVersion={dataVersion}
                         />
@@ -260,6 +327,7 @@ const App: React.FC = () => {
                 formData={riskData.formData} riskEkibi={riskData.riskEkibi} onUpdateFormData={riskData.updateFormData as any}
                 onGenerateSummary={generateGeneralSummary} isGeneratingSummary={isGeneratingSummary} onShowInfo={setActiveInfoModal}
                 onToggleSpeech={toggleSpeech} activeSpeechTarget={speechTarget}
+                onEditPrompt={() => setIsSummaryPromptEditorOpen(true)}
             />
         </div>
       </div>

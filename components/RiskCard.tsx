@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Risk, OnerilecekOnlemler, FileRecord, SpeechTarget, ModalState } from '../types';
 import * as DB from '../services/db';
@@ -8,6 +9,7 @@ import {
     RiskHeader, RiskContext, RiskHazard, RiskMedia, RiskScoring, RiskMeasures, RiskFooter 
 } from './RiskCardParts';
 import { GenerateContentResponse } from "@google/genai";
+import { PromptEditorModal } from './Modals'; // Import new Modal
 
 interface RiskCardProps {
     risk: Risk;
@@ -25,6 +27,7 @@ interface RiskCardProps {
     onUpdateMeasures: (id: number, measures: OnerilecekOnlemler) => void;
     showConfirmation: (config: Omit<ModalState, 'isOpen'>) => void;
     showAlert: (title: string, message: React.ReactNode) => void;
+    onApiKeyError: () => void;
     alanSuggestions: string[];
     isGeneratingAlanSuggestions: boolean;
     onGenerateAlanSuggestions: () => void;
@@ -44,7 +47,7 @@ const PrintThumbnail: React.FC<{ file: FileRecord; label: string }> = ({ file, l
     return <img src={url} alt={label} className="hidden print:block w-[80px] h-[80px] object-contain border border-gray-300 align-top mt-1" />;
 };
 
-const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAdi, onUpdate, onRemove, onDuplicate, onToggleCollapse, onShowInfo, onPreviewImage, onToggleSpeech, activeSpeechTarget, onUpdateScores, showConfirmation, showAlert, alanSuggestions, isGeneratingAlanSuggestions, onGenerateAlanSuggestions, dataVersion }) => {
+const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAdi, onUpdate, onRemove, onDuplicate, onToggleCollapse, onShowInfo, onPreviewImage, onToggleSpeech, activeSpeechTarget, onUpdateScores, showConfirmation, showAlert, onApiKeyError, alanSuggestions, isGeneratingAlanSuggestions, onGenerateAlanSuggestions, dataVersion }) => {
     const [files, setFiles] = useState<FileRecord[]>([]);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -56,6 +59,16 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
     const [isGeneratingMeasures, setIsGeneratingMeasures] = useState(false);
     const [isGeneratingSorumlu, setIsGeneratingSorumlu] = useState(false);
     const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+    
+    // Prompt Editing State
+    const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
+    const [editingPromptType, setEditingPromptType] = useState<'hazard' | 'measures'>('hazard');
+    const [hazardPrompt, setHazardPrompt] = useState<string>(() => {
+        return localStorage.getItem('hazardPromptTemplate') || AI.DEFAULT_HAZARD_PROMPT_TEMPLATE;
+    });
+    const [measuresPrompt, setMeasuresPrompt] = useState<string>(() => {
+        return localStorage.getItem('measuresPromptTemplate') || AI.DEFAULT_MEASURES_PROMPT_TEMPLATE;
+    });
 
     const cardRef = useRef<HTMLDivElement>(null);
     const alanContainerRef = useRef<HTMLDivElement>(null);
@@ -165,23 +178,48 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
         if (!risk.isCollapsed) setTimeout(() => cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); 
     };
 
+    const handleSavePrompt = (newPrompt: string) => {
+        if (editingPromptType === 'hazard') {
+            setHazardPrompt(newPrompt);
+            localStorage.setItem('hazardPromptTemplate', newPrompt);
+        } else {
+            setMeasuresPrompt(newPrompt);
+            localStorage.setItem('measuresPromptTemplate', newPrompt);
+        }
+    };
+    
+    const openPromptEditor = (type: 'hazard' | 'measures') => {
+        setEditingPromptType(type);
+        setIsPromptEditorOpen(true);
+    };
+
     // AI Logic using service
+    const handleError = (e: any, defaultMsg: string) => {
+        if (AI.isAuthOrQuotaError(e)) {
+            showAlert("API Kotası/Yetki Hatası", "Sistemin API kullanım kotası dolmuş veya anahtar geçersiz. Lütfen kendi API anahtarınızı girin.");
+            onApiKeyError();
+        } else {
+            showAlert("AI Hatası", defaultMsg);
+        }
+    };
+
     const generateSuggestions = async () => {
         if (!risk.alan) { showAlert("Gerekli Bilgi Eksik", "Önce 'Alan/Bölüm' girin."); return; }
         setIsGenerating(true);
         try {
             const items = await AI.fetchFaaliyetSuggestions(birimAdi, risk.alan);
             setSuggestions(items); setShowSuggestions(true);
-        } catch (e) { showAlert("AI Hatası", "Faaliyet önerileri başarısız."); } finally { setIsGenerating(false); }
+        } catch (e) { handleError(e, "Faaliyet önerileri başarısız."); } finally { setIsGenerating(false); }
     };
 
     const generateHazardSuggestions = async () => {
         if (!risk.tehlike) { showAlert("Gerekli Bilgi Eksik", "Tehlike türü seçin."); return; }
         setIsGeneratingHazards(true);
         try {
-            const items = await AI.fetchHazardSuggestions(birimAdi, risk);
+            // Pass the custom prompt if it exists
+            const items = await AI.fetchHazardSuggestions(birimAdi, risk, hazardPrompt);
             setAiHazardSuggestions(items);
-        } catch (e) { showAlert("AI Hatası", "Tehlike önerileri başarısız."); } finally { setIsGeneratingHazards(false); }
+        } catch (e) { handleError(e, "Tehlike önerileri başarısız."); } finally { setIsGeneratingHazards(false); }
     };
     
     const analyzeImageForHazards = async () => {
@@ -191,7 +229,7 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
         try {
             const text = await AI.analyzeImageHazards(img.fileData, img.fileType);
             onUpdate(risk.id, 'tehlikeAciklama', `${risk.tehlikeAciklama || ''}\n\n--- FOTOĞRAF ANALİZİ ---\n${text}`.trim());
-        } catch (e) { showAlert("AI Hatası", "Analiz başarısız."); } finally { setIsAnalyzingImage(false); }
+        } catch (e) { handleError(e, "Analiz başarısız."); } finally { setIsAnalyzingImage(false); }
     };
 
     const generateRiskScores = async () => {
@@ -205,16 +243,16 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
                 confirmText: 'Uygula',
                 onConfirm: () => onUpdateScores(risk.id, { olasilik: res.olasilik, siddet: res.siddet, siklik: res.siklik })
             });
-        } catch (e) { showAlert("AI Hatası", "Puanlama başarısız."); } finally { setIsGeneratingScores(false); }
+        } catch (e) { handleError(e, "Puanlama başarısız."); } finally { setIsGeneratingScores(false); }
     };
     
     const generateControlMeasures = async () => {
         if (!risk.tehlikeAciklama) { showAlert("Eksik", "Tehlike açıklaması girin."); return; }
         setIsGeneratingMeasures(true);
-        const fields: string[] = ['eliminasyon', 'ikame', 'muhendislik', 'idari', 'kkd'];
+        const fields: (keyof OnerilecekOnlemler & string)[] = ['eliminasyon', 'ikame', 'muhendislik', 'idari', 'kkd'];
         try {
-            const stream = await AI.fetchControlMeasuresStream(risk);
-            let buffer = ''; let currentField: keyof OnerilecekOnlemler | null = null;
+            const stream = await AI.fetchControlMeasuresStream(risk, measuresPrompt);
+            let buffer = ''; let currentField: (keyof OnerilecekOnlemler & string) | null = null;
             for await (const chunk of stream) {
                 const c = chunk as GenerateContentResponse;
                 buffer += c.text || '';
@@ -222,9 +260,8 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
                     if (!currentField) {
                         const nextField = fields.find(f => buffer.includes(`<${f}>`));
                         if (nextField) {
-                            currentField = nextField as keyof OnerilecekOnlemler; 
-                            const tag = `<${nextField}>`;
-                            buffer = buffer.substring(buffer.indexOf(tag) + tag.length); 
+                            currentField = nextField; 
+                            buffer = buffer.substring(buffer.indexOf(`<${nextField}>`) + nextField.length + 2); 
                         } else break;
                     }
                     if (currentField) {
@@ -240,7 +277,7 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
                     }
                 }
             }
-        } catch (e) { showAlert("AI Hatası", "Önlem önerileri başarısız."); } finally { setIsGeneratingMeasures(false); }
+        } catch (e) { handleError(e, "Önlem önerileri başarısız."); } finally { setIsGeneratingMeasures(false); }
     };
     
     const generateResponsibleUnit = async () => {
@@ -249,7 +286,7 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
         try {
             const sorumlu = await AI.fetchResponsibleUnit(risk);
             if (sorumlu) onUpdate(risk.id, 'sorumlu', sorumlu);
-        } catch (e) { showAlert("AI Hatası", "Sorumlu birim önerisi başarısız."); } finally { setIsGeneratingSorumlu(false); }
+        } catch (e) { handleError(e, "Sorumlu birim önerisi başarısız."); } finally { setIsGeneratingSorumlu(false); }
     };
 
     const riskColor = 
@@ -269,53 +306,65 @@ const RiskCard: React.FC<RiskCardProps> = React.memo(({ risk, riskIndex, birimAd
     const tehlikeData = tehlikeVeriYapisi[risk.tehlike] || tehlikeVeriYapisi[''];
 
     return (
-        <div ref={cardRef} className={`border-2 rounded ${riskColor} risk-card print-break-before-always`}>
-            <RiskHeader 
-                risk={risk} riskIndex={riskIndex} riskSeviyeBadgeColor={badgeColor} shortenedTehlike={shortenedTehlike} riskColor={riskColor}
-                onRemove={onRemove} onDuplicate={onDuplicate} onToggleCollapse={onToggleCollapse} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+        <>
+            <PromptEditorModal 
+                isOpen={isPromptEditorOpen}
+                currentPrompt={editingPromptType === 'hazard' ? hazardPrompt : measuresPrompt}
+                defaultPrompt={editingPromptType === 'hazard' ? AI.DEFAULT_HAZARD_PROMPT_TEMPLATE : AI.DEFAULT_MEASURES_PROMPT_TEMPLATE}
+                variableHelpText={editingPromptType === 'hazard' ? '{birim}, {alan}, {faaliyet}, {tehlikeKategorisi}, {mevcutListe}' : '{alan}, {tehlike}'}
+                onSave={handleSavePrompt}
+                onClose={() => setIsPromptEditorOpen(false)}
             />
-            <div className={`risk-card-content p-3 md:p-4 border-t border-gray-300 ${risk.isCollapsed ? 'hidden collapsed-in-print' : ''}`}>
-                <div className="risk-problem-section print:break-inside-avoid">
-                    <RiskContext
-                        risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
-                        alanSuggestions={alanSuggestions} suggestions={suggestions} 
-                        showAlanSuggestions={showAlanSuggestions} showSuggestions={showSuggestions}
-                        isGeneratingAlan={isGeneratingAlanSuggestions} isGeneratingFaaliyet={isGenerating}
-                        onGenerateAlan={onGenerateAlanSuggestions} onGenerateFaaliyet={generateSuggestions}
-                        setShowAlanSuggestions={setShowAlanSuggestions} setShowSuggestions={setShowSuggestions}
-                        alanContainerRef={alanContainerRef} faaliyetContainerRef={faaliyetContainerRef}
-                    />
-                    <RiskHazard 
-                        risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
-                        tehlikeData={tehlikeData} aiHazardSuggestions={aiHazardSuggestions} isGeneratingHazards={isGeneratingHazards}
-                        onGenerateHazards={generateHazardSuggestions} 
-                        handleSelectAciklama={handleSelectAciklama} 
-                    />
-                    <RiskMedia 
-                        risk={risk} files={files} isAnalyzingImage={isAnalyzingImage} onAnalyzeImage={analyzeImageForHazards}
-                        onShowInfo={onShowInfo} onFileChange={handleFileChange} onDeleteFile={deleteFile} onFileClick={onFileButtonClick}
-                        getFileLabel={getFileLabel} PrintThumbnail={PrintThumbnail}
-                    />
-                    <RiskScoring 
-                        risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
-                        isGeneratingScores={isGeneratingScores} onGenerateScores={generateRiskScores} onShowInfo={onShowInfo}
-                    />
-                </div>
-                <div className="risk-solution-section print:break-inside-avoid">
-                    <RiskMeasures 
-                        risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
-                        tehlikeData={tehlikeData} isGeneratingMeasures={isGeneratingMeasures} onGenerateMeasures={generateControlMeasures}
-                        onShowInfo={onShowInfo} onlemRefs={onlemRefs} mevcutOnlemlerRef={mevcutOnlemlerRef} handleTextareaInput={handleTextareaInput}
-                        riskIndex={riskIndex} shortenedTehlike={shortenedTehlike} riskSeviyeBadgeColor={badgeColor}
-                    />
-                    <RiskFooter 
-                        risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
-                        isGeneratingSorumlu={isGeneratingSorumlu} onGenerateSorumlu={generateResponsibleUnit} onShowInfo={onShowInfo}
-                        onRemove={onRemove} onDuplicate={onDuplicate} onToggleCollapse={onToggleCollapse} handleBottomCollapse={handleBottomCollapse}
-                    />
+            <div ref={cardRef} className={`border-2 rounded ${riskColor} risk-card print-break-before-always`}>
+                <RiskHeader 
+                    risk={risk} riskIndex={riskIndex} riskSeviyeBadgeColor={badgeColor} shortenedTehlike={shortenedTehlike} riskColor={riskColor}
+                    onRemove={onRemove} onDuplicate={onDuplicate} onToggleCollapse={onToggleCollapse} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+                />
+                <div className={`risk-card-content p-3 md:p-4 border-t border-gray-300 ${risk.isCollapsed ? 'hidden collapsed-in-print' : ''}`}>
+                    <div className="risk-problem-section print:break-inside-avoid">
+                        <RiskContext
+                            risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+                            alanSuggestions={alanSuggestions} suggestions={suggestions} 
+                            showAlanSuggestions={showAlanSuggestions} showSuggestions={showSuggestions}
+                            isGeneratingAlan={isGeneratingAlanSuggestions} isGeneratingFaaliyet={isGenerating}
+                            onGenerateAlan={onGenerateAlanSuggestions} onGenerateFaaliyet={generateSuggestions}
+                            setShowAlanSuggestions={setShowAlanSuggestions} setShowSuggestions={setShowSuggestions}
+                            alanContainerRef={alanContainerRef} faaliyetContainerRef={faaliyetContainerRef}
+                        />
+                        <RiskHazard 
+                            risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+                            tehlikeData={tehlikeData} aiHazardSuggestions={aiHazardSuggestions} isGeneratingHazards={isGeneratingHazards}
+                            onGenerateHazards={generateHazardSuggestions}
+                            handleSelectAciklama={handleSelectAciklama}
+                            onEditPrompt={() => openPromptEditor('hazard')}
+                        />
+                        <RiskMedia 
+                            risk={risk} files={files} isAnalyzingImage={isAnalyzingImage} onAnalyzeImage={analyzeImageForHazards}
+                            onShowInfo={onShowInfo} onFileChange={handleFileChange} onDeleteFile={deleteFile} onFileClick={onFileButtonClick}
+                            getFileLabel={getFileLabel} PrintThumbnail={PrintThumbnail}
+                        />
+                        <RiskScoring 
+                            risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+                            isGeneratingScores={isGeneratingScores} onGenerateScores={generateRiskScores} onShowInfo={onShowInfo}
+                        />
+                    </div>
+                    <div className="risk-solution-section print:break-inside-avoid">
+                        <RiskMeasures 
+                            risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+                            tehlikeData={tehlikeData} isGeneratingMeasures={isGeneratingMeasures} onGenerateMeasures={generateControlMeasures}
+                            onShowInfo={onShowInfo} onlemRefs={onlemRefs} mevcutOnlemlerRef={mevcutOnlemlerRef} handleTextareaInput={handleTextareaInput}
+                            riskIndex={riskIndex} shortenedTehlike={shortenedTehlike} riskSeviyeBadgeColor={badgeColor}
+                            onEditPrompt={() => openPromptEditor('measures')}
+                        />
+                        <RiskFooter 
+                            risk={risk} onUpdate={onUpdate} onToggleSpeech={onToggleSpeech} activeSpeechTarget={activeSpeechTarget}
+                            isGeneratingSorumlu={isGeneratingSorumlu} onGenerateSorumlu={generateResponsibleUnit} onShowInfo={onShowInfo}
+                            onRemove={onRemove} onDuplicate={onDuplicate} onToggleCollapse={onToggleCollapse} handleBottomCollapse={handleBottomCollapse}
+                        />
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 });
 

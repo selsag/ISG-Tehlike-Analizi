@@ -4,27 +4,127 @@ import { FormData as FormData_Type, Risk } from '../types';
 import { DEFAULT_ALAN_SUGGESTIONS, tehlikeVeriYapisi } from '../constants';
 import { blobToBase64 } from '../utils/helpers';
 
-// API Anahtarını güvenli bir şekilde al
-const getApiKey = (): string => {
-    // 1. Mevcut Platform (Otomatik Enjeksiyon)
-    // Bu platformda process.env.API_KEY build sırasında otomatik tanımlanır.
+// --- PROMPT TEMPLATES ---
+
+export const DEFAULT_HAZARD_PROMPT_TEMPLATE = `Sen tecrübeli bir İş Güvenliği Uzmanısın. Aşağıdaki bağlama uygun potansiyel tehlikeleri belirlemen gerekiyor.
+
+BAĞLAM:
+- Birim: {birim}
+- Alan: {alan}
+- Faaliyet: {faaliyet}
+- Tehlike Kategorisi: {tehlikeKategorisi}
+
+GÖREV:
+Bu kategoride, bu alanda ve bu faaliyet sırasında oluşabilecek, MEVCUT LİSTEDE OLMAYAN 7 adet spesifik tehlike durumu cümlesi yaz.
+Cümleler bir tehlikeyi veya risk kaynağını açıkça belirtmeli. (Örn: "Kabloların dağınık olması", "Havalandırmanın yetersizliği" gibi).
+
+MEVCUT LİSTE (Bunları tekrar etme):
+{mevcutListe}
+
+Yanıtı JSON formatında ver: {"suggestions": ["tehlike açıklaması 1", "tehlike açıklaması 2"]}`;
+
+export const DEFAULT_MEASURES_PROMPT_TEMPLATE = `Sen bir İSG Uzmanısın. Aşağıda belirtilen risk için "Risk Kontrol Hiyerarşisi"ne (Hierarchy of Controls) uygun, üniversite ortamında uygulanabilir, somut ve teknik önlemler öner.
+
+RİSK BİLGİSİ:
+- Alan: {alan}
+- Tehlike: {tehlike}
+
+HİYERARŞİ ADIMLARI VE BEKLENEN İÇERİK:
+1. Eliminasyon (Yok Etme): Tehlikeyi tamamen ortadan kaldıran kökten çözüm.
+2. İkame (Yerine Koyma): Tehlikeli olanı daha az tehlikeli ile değiştirme.
+3. Mühendislik Önlemleri: Toplu koruma, teknik donanım, sensör, bariyer, havalandırma vb.
+4. İdari Önlemler: Eğitim, talimat, işaretleme, rotasyon, bakım planları.
+5. KKD (Kişisel Koruyucu Donanım): Kişiye yönelik koruyucu ekipmanlar.
+
+KURALLAR:
+- Her başlık için en az 1-2 cümlelik, uygulanabilir, net öneriler yaz.
+- "Gerekli önlemler alınmalı" gibi yuvarlak laflar etme. "Kaydırmaz bant yapıştırılmalı" gibi net konuş.
+- ÖNEMLİ: Her önerinin sonuna, ilgili Türk İSG Yönetmeliğine ve maddesine minimal bir atıf ekle (parantez içinde).
+  Örnek: (İş Ekipmanları Yön. Md. 5) veya (Binaların Yangından Korunması Yön. Md. 21).
+- Çıktıyı tam olarak aşağıdaki XML benzeri etiket formatında ver (Parse edeceğim):
+
+<eliminasyon>...</eliminasyon>
+<ikame>...</ikame>
+<muhendislik>...</muhendislik>
+<idari>...</idari>
+<kkd>...</kkd>`;
+
+export const DEFAULT_SUMMARY_PROMPT_TEMPLATE = `Sen uzman bir Baş Denetçisin. Bir üniversitenin "{birim}" birimi için yapılan İş Sağlığı ve Güvenliği Risk Değerlendirmesi raporunun "SONUÇ VE GENEL DEĞERLENDİRME" bölümünü yazıyorsun.
+
+BİRİM BİLGİLERİ:
+- Birim Adı: {birim}
+- Tehlike Sınıfı: {tehlikeSinifi}
+- Toplam Tespit Edilen Risk Sayısı: {riskSayisi}
+
+TESPİT EDİLEN RİSKLERİN DETAYLARI:
+{riskDetaylari}
+
+GÖREVİN:
+Yönetime sunulacak, resmi, teknik ve profesyonel bir dille yazılmış kapsamlı bir özet metni oluştur.
+
+METİN İÇERİĞİ ŞUNLARI KAPSAMALIDIR:
+1. **Giriş:** Çalışmanın amacı ve kapsamı.
+2. **Genel Durum Analizi:** Birimde öne çıkan temel risk alanları nelerdir? (Örn: Elektrik altyapısı mı kötü, yoksa ergonomik sorunlar mı ağırlıkta?)
+3. **Öncelikli Aksiyonlar:** Acilen müdahale edilmesi gereken "Yüksek" veya "Önemli" riskler varsa vurgula.
+4. **Öneriler ve Sonuç:** İyileştirme önerilerinin genel çerçevesi ve İSG kültürüne katkısı.
+
+KURALLAR:
+- "Merhaba", "İşte özetiniz" gibi sohbet ifadeleri KULLANMA. Doğrudan rapor metnini yaz.
+- Maddeler halinde değil, akıcı paragraflar halinde yaz (veya gerekirse çok önemli yerleri maddeleyebilirsin ama bütünlük bozulmasın).
+- Yaklaşık 300-500 kelime uzunluğunda olsun.`;
+
+// --- API & HELPERS ---
+
+export const getApiKey = (): string => {
+    // 1. Kullanıcı tarafından girilen Key (LocalStorage)
+    if (typeof localStorage !== 'undefined') {
+        const localKey = localStorage.getItem('user_gemini_api_key');
+        if (localKey && localKey.trim() !== '') {
+            return localKey.trim();
+        }
+    }
+
+    // 2. Mevcut Platform (Otomatik Enjeksiyon)
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         return process.env.API_KEY;
     }
     
-    // 2. Lokal Geliştirme (Vite .env Desteği)
-    // Projeyi indirip lokalde çalıştıranlar için .env dosyasındaki VITE_API_KEY okunur.
+    // 3. Lokal Geliştirme (Vite .env Desteği)
     try {
-        // @ts-ignore - TypeScript import.meta'yı bazen tanımaz, bu yüzden ignore ediyoruz.
+        // @ts-ignore
         if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
             // @ts-ignore
             return import.meta.env.VITE_API_KEY;
         }
-    } catch (e) {
-        // Hata olursa sessizce geç
-    }
+    } catch (e) {}
     
     return '';
+};
+
+export const hasSystemApiKey = (): boolean => {
+    // Check Env
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) return true;
+    // Check Vite Env
+    try {
+        // @ts-ignore
+        if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) return true;
+    } catch (e) {}
+    return false;
+};
+
+// Error Detection Helper
+export const isAuthOrQuotaError = (error: any): boolean => {
+    const msg = error?.toString().toLowerCase() || '';
+    
+    // Sadece kesin yetki ve kota hatalarını kontrol et.
+    // 400 (Bad Request) her zaman API Key hatası değildir, bazen prompt hatasıdır.
+    // Bu yüzden '400'ü çıkardık, sadece spesifik 'API_KEY_INVALID' gibi durumları veya 403/429'u yakalıyoruz.
+    
+    if (msg.includes('403') || msg.includes('429')) return true;
+    
+    if (msg.includes('api_key') || msg.includes('apikey') || msg.includes('quota') || msg.includes('permission_denied')) return true;
+
+    return false;
 };
 
 const getAI = () => new GoogleGenAI({ apiKey: getApiKey() });
@@ -66,7 +166,7 @@ KURALLAR:
     return [...new Set([...DEFAULT_ALAN_SUGGESTIONS, ...((jsonResponse.alanlar as string[]) || [])])];
 };
 
-export const fetchGeneralSummary = async (formData: FormData_Type, riskler: Risk[]): Promise<string> => {
+export const fetchGeneralSummary = async (formData: FormData_Type, riskler: Risk[], customTemplate?: string): Promise<string> => {
     const ai = getAI();
     
     // Riskleri özet için sadeleştir (token tasarrufu ve odaklanma)
@@ -78,31 +178,13 @@ export const fetchGeneralSummary = async (formData: FormData_Type, riskler: Risk
         onlemler: r.onerilecekOnlemler
     }));
 
-    const prompt = `
-Sen uzman bir Baş Denetçisin. Bir üniversitenin "${formData.birim}" birimi için yapılan İş Sağlığı ve Güvenliği Risk Değerlendirmesi raporunun "SONUÇ VE GENEL DEĞERLENDİRME" bölümünü yazıyorsun.
+    let prompt = customTemplate || DEFAULT_SUMMARY_PROMPT_TEMPLATE;
+    prompt = prompt
+        .replace('{birim}', formData.birim)
+        .replace('{tehlikeSinifi}', formData.tehlikeSinifi)
+        .replace('{riskSayisi}', riskler.length.toString())
+        .replace('{riskDetaylari}', JSON.stringify(simplifiedRisks.slice(0, 30), null, 2));
 
-BİRİM BİLGİLERİ:
-- Birim Adı: ${formData.birim}
-- Tehlike Sınıfı: ${formData.tehlikeSinifi}
-- Toplam Tespit Edilen Risk Sayısı: ${riskler.length}
-
-TESPİT EDİLEN RİSKLERİN DETAYLARI:
-${JSON.stringify(simplifiedRisks.slice(0, 30), null, 2)}
-
-GÖREVİN:
-Yönetime sunulacak, resmi, teknik ve profesyonel bir dille yazılmış kapsamlı bir özet metni oluştur.
-
-METİN İÇERİĞİ ŞUNLARI KAPSAMALIDIR:
-1. **Giriş:** Çalışmanın amacı ve kapsamı.
-2. **Genel Durum Analizi:** Birimde öne çıkan temel risk alanları nelerdir? (Örn: Elektrik altyapısı mı kötü, yoksa ergonomik sorunlar mı ağırlıkta?)
-3. **Öncelikli Aksiyonlar:** Acilen müdahale edilmesi gereken "Yüksek" veya "Önemli" riskler varsa vurgula.
-4. **Öneriler ve Sonuç:** İyileştirme önerilerinin genel çerçevesi ve İSG kültürüne katkısı.
-
-KURALLAR:
-- "Merhaba", "İşte özetiniz" gibi sohbet ifadeleri KULLANMA. Doğrudan rapor metnini yaz.
-- Maddeler halinde değil, akıcı paragraflar halinde yaz (veya gerekirse çok önemli yerleri maddeleyebilirsin ama bütünlük bozulmasın).
-- Yaklaşık 300-500 kelime uzunluğunda olsun.
-`;
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -137,28 +219,25 @@ Yanıtı JSON formatında ver: {"activities": ["faaliyet 1", "faaliyet 2"]}
     return json.activities || [];
 };
 
-export const fetchHazardSuggestions = async (birim: string, risk: Risk): Promise<string[]> => {
+export const fetchHazardSuggestions = async (birim: string, risk: Risk, customTemplate?: string): Promise<string[]> => {
     const ai = getAI();
     const existingHazards = tehlikeVeriYapisi[risk.tehlike]?.aciklamaListesi || [];
     
-    const prompt = `
-Sen tecrübeli bir İş Güvenliği Uzmanısın. Aşağıdaki bağlama uygun potansiyel tehlikeleri belirlemen gerekiyor.
+    // Use custom template if provided, otherwise default
+    let prompt = customTemplate || DEFAULT_HAZARD_PROMPT_TEMPLATE;
 
-BAĞLAM:
-- Birim: ${birim}
-- Alan: ${risk.alan}
-- Faaliyet: ${risk.faaliyet}
-- Tehlike Kategorisi: ${risk.tehlike}
+    // Replace placeholders with actual values
+    prompt = prompt
+        .replace('{birim}', birim)
+        .replace('{alan}', risk.alan)
+        .replace('{faaliyet}', risk.faaliyet)
+        .replace('{tehlikeKategorisi}', risk.tehlike)
+        .replace('{mevcutListe}', JSON.stringify(existingHazards));
 
-GÖREV:
-Bu kategoride, bu alanda ve bu faaliyet sırasında oluşabilecek, MEVCUT LİSTEDE OLMAYAN 7 adet spesifik tehlike durumu cümlesi yaz.
-Cümleler bir tehlikeyi veya risk kaynağını açıkça belirtmeli. (Örn: "Kabloların dağınık olması", "Havalandırmanın yetersizliği" gibi).
-
-MEVCUT LİSTE (Bunları tekrar etme):
-${JSON.stringify(existingHazards)}
-
-Yanıtı JSON formatında ver: {"suggestions": ["tehlike açıklaması 1", "tehlike açıklaması 2"]}
-`;
+    // Ensure JSON instruction exists if user accidentally deleted it in custom prompt
+    if (!prompt.includes('JSON')) {
+        prompt += '\n\nÖNEMLİ: Yanıtı sadece şu JSON formatında ver: {"suggestions": ["öneri 1", "öneri 2"]}';
+    }
     
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -249,36 +328,13 @@ Yanıtı JSON formatında ver:
     return JSON.parse(response.text.trim());
 };
 
-export const fetchControlMeasuresStream = async (risk: Risk) => {
+export const fetchControlMeasuresStream = async (risk: Risk, customTemplate?: string) => {
     const ai = getAI();
     
-    const prompt = `
-Sen bir İSG Uzmanısın. Aşağıda belirtilen risk için "Risk Kontrol Hiyerarşisi"ne (Hierarchy of Controls) uygun, üniversite ortamında uygulanabilir, somut ve teknik önlemler öner.
-
-RİSK BİLGİSİ:
-- Alan: ${risk.alan}
-- Tehlike: ${risk.tehlikeAciklama}
-
-HİYERARŞİ ADIMLARI VE BEKLENEN İÇERİK:
-1. Eliminasyon (Yok Etme): Tehlikeyi tamamen ortadan kaldıran kökten çözüm.
-2. İkame (Yerine Koyma): Tehlikeli olanı daha az tehlikeli ile değiştirme.
-3. Mühendislik Önlemleri: Toplu koruma, teknik donanım, sensör, bariyer, havalandırma vb.
-4. İdari Önlemler: Eğitim, talimat, işaretleme, rotasyon, bakım planları.
-5. KKD (Kişisel Koruyucu Donanım): Kişiye yönelik koruyucu ekipmanlar.
-
-KURALLAR:
-- Her başlık için en az 1-2 cümlelik, uygulanabilir, net öneriler yaz.
-- "Gerekli önlemler alınmalı" gibi yuvarlak laflar etme. "Kaydırmaz bant yapıştırılmalı" gibi net konuş.
-- ÖNEMLİ: Her önerinin sonuna, ilgili Türk İSG Yönetmeliğine ve maddesine minimal bir atıf ekle (parantez içinde).
-  Örnek: (İş Ekipmanları Yön. Md. 5) veya (Binaların Yangından Korunması Yön. Md. 21).
-- Çıktıyı tam olarak aşağıdaki XML benzeri etiket formatında ver (Parse edeceğim):
-
-<eliminasyon>...</eliminasyon>
-<ikame>...</ikame>
-<muhendislik>...</muhendislik>
-<idari>...</idari>
-<kkd>...</kkd>
-`;
+    let prompt = customTemplate || DEFAULT_MEASURES_PROMPT_TEMPLATE;
+    prompt = prompt
+        .replace('{alan}', risk.alan)
+        .replace('{tehlike}', risk.tehlikeAciklama);
 
     return ai.models.generateContentStream({ model: 'gemini-2.5-flash', contents: prompt });
 };
@@ -317,4 +373,21 @@ Yanıtı JSON olarak ver: {"sorumlu": "Birim Adı"}
     });
     const result = JSON.parse(response.text.trim());
     return result.sorumlu;
+};
+
+// Lightweight API key validation. Returns { valid, error, transient }
+export const validateApiKey = async (candidateKey: string): Promise<{ valid: boolean; error?: string; transient?: boolean }> => {
+    const trimmed = String(candidateKey || '').trim();
+    if (!trimmed) return { valid: false, error: 'empty' };
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: trimmed });
+        // Small prompt to validate the key without consuming many tokens
+        await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: 'Bu istek sadece anahtar doğrulaması içindir. Kısa bir cevap veriniz: "ok"' });
+        return { valid: true };
+    } catch (err: any) {
+        // If it's likely an auth/quota/permission issue, mark as non-transient
+        const transient = !isAuthOrQuotaError(err);
+        return { valid: false, error: err?.toString ? err.toString() : 'unknown_error', transient };
+    }
 };

@@ -1,0 +1,40 @@
+# PROMPT: Sadece kod düzeltme talimatları (Google AI Studio agent için)
+# Amaç: `components/RiskCardParts.tsx` içinde rich editor dropdown davranışını düzeltmek.
+
+Dosya: components/RiskCardParts.tsx
+
+Yapılacak kod değişiklikleri (yalnızca bu maddeleri uygula):
+
+1) toolbarRef ekle
+   - Mevcut `const divRef = useRef<HTMLDivElement>(null);` satırının hemen altına şu satırı ekle:
+     `const toolbarRef = useRef<HTMLDivElement>(null);`
+
+2) Dış tıklama handler'ını değiştir
+   - Mevcut global click handler useEffect blokunu tamamen şu blok ile değiştir:
+
+      // Dışarı tıklama kontrolü (Menüleri kapatmak için)
+      useEffect(() => {
+          const handleClickOutside = (event: MouseEvent) => {
+              // Eğer tıklanan yer toolbar'ın içindeyse hiçbir şey yapma
+              if (toolbarRef.current && toolbarRef.current.contains(event.target as Node)) {
+                  return;
+              }
+              // Toolbar dışına tıklandıysa tüm menüleri kapat
+              setShowColorPicker(false);
+              setShowFontSizePicker(false);
+              setShowFontFamilyPicker(false);
+          };
+
+          document.addEventListener('mousedown', handleClickOutside);
+          return () => document.removeEventListener('mousedown', handleClickOutside);
+      }, []);
+
+3) Toolbar elementine ref ekle
+   - Toolbar container div (örn. `<div className="flex items-center ... relative z-20">`) öğesine `ref={toolbarRef}` ekle.
+
+4) Dropdown z-index değerlerini artır
+   - Font family, font size ve color dropdown container'larında `z-[100]` veya daha düşük olanları `z-[1000]` olarak değiştir.
+
+5) Butonlarda focus kaybını önle
+   - Toolbar içindeki butonlar için click handler yerine `onMouseDown` kullanılarak focus kaybı engellensin. Örnek:
+     `onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); /* mevcut işlem */ }}`

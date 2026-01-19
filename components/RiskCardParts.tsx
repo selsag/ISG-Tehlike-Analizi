@@ -5,7 +5,7 @@ import {
     IconTrash, IconCopy, IconChevronUp, IconLightbulb, IconLoaderSmall, 
     IconMic, IconCamera, IconPaperclip, IconHelp, IconImage, IconPaperclipSmall,
     IconBold, IconItalic, IconUnderline, IconAlignLeft, IconAlignCenter, IconAlignRight,
-    IconPalette, IconType
+    IconPalette, IconType, IconSettings
 } from './Icons';
 import { tehlikeVeriYapisi, etkilenenKisilerListesi, olasilikMap, siddetMap, siklikMap } from '../constants';
 
@@ -17,7 +17,6 @@ interface CommonProps {
 }
 
 // --- Rich Text Editor Component ---
-// EXPORT EKLENDİ: Artık başka dosyalardan (SummarySection gibi) çağrılabilir.
 export const RichTextEditor = ({ 
     value, 
     onChange, 
@@ -32,6 +31,7 @@ export const RichTextEditor = ({
     disabled?: boolean;
 }) => {
     const divRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showFontSizePicker, setShowFontSizePicker] = useState(false);
     const [showFontFamilyPicker, setShowFontFamilyPicker] = useState(false);
@@ -82,22 +82,22 @@ export const RichTextEditor = ({
         }
     }, [value]);
 
+    // Dışarı tıklama kontrolü
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (showColorPicker || showFontSizePicker || showFontFamilyPicker) {
-                setShowColorPicker(false);
-                setShowFontSizePicker(false);
-                setShowFontFamilyPicker(false);
+            if (toolbarRef.current && toolbarRef.current.contains(event.target as Node)) {
+                return;
             }
+            setShowColorPicker(false);
+            setShowFontSizePicker(false);
+            setShowFontFamilyPicker(false);
         };
 
-        if (showColorPicker || showFontSizePicker || showFontFamilyPicker) {
-            document.addEventListener('click', handleClickOutside);
-        }
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
-            document.removeEventListener('click', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [showColorPicker, showFontSizePicker, showFontFamilyPicker]);
+    }, []);
 
     const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
         onChange(e.currentTarget.innerHTML);
@@ -112,9 +112,7 @@ export const RichTextEditor = ({
             const temp = document.createElement('div');
             temp.innerHTML = html;
             
-            // Clean unwanted styles but keep basic formatting
             const stripStyles = (el: HTMLElement) => {
-                // el.style.fontFamily = ''; // Font ailesine izin veriyoruz artık
                 el.style.lineHeight = 'inherit';
                 el.style.backgroundColor = ''; 
                 el.removeAttribute('class');
@@ -136,7 +134,6 @@ export const RichTextEditor = ({
         divRef.current?.focus();
     };
 
-    // Toolbar button click handler: Prevent default to keep focus in editor
     const onToolMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation(); 
@@ -146,10 +143,9 @@ export const RichTextEditor = ({
         <div className={`flex flex-col border border-gray-300 rounded overflow-visible bg-white ${disabled ? 'opacity-75' : ''}`}>
             {/* Toolbar */}
             {!disabled && (
-                <div className="flex items-center flex-wrap gap-1 p-1 bg-gray-50 border-b border-gray-200 overflow-visible print:hidden relative z-20">
-                    {/* Grup 1: Yazı Tipi & Boyut */}
+                <div ref={toolbarRef} className="flex items-center flex-wrap gap-1 p-1 bg-gray-50 border-b border-gray-200 overflow-visible print:hidden relative z-50">
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
-                        {/* Font Family Selector */}
+                        {/* Font Family */}
                         <div className="relative">
                             <button 
                                 onMouseDown={onToolMouseDown}
@@ -160,17 +156,12 @@ export const RichTextEditor = ({
                                 <span className="font-serif font-bold text-sm px-1">Font</span>
                                 <span className="text-[10px] text-gray-500">▼</span>
                             </button>
-                            
                             {showFontFamilyPicker && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[100] w-[160px] flex flex-col max-h-[250px] overflow-y-auto">
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-50 w-[160px] flex flex-col max-h-[250px] overflow-y-auto">
                                     {fontFamilies.map(font => (
                                         <button
                                             key={font.val}
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                execCmd('fontName', font.val);
-                                                setShowFontFamilyPicker(false);
-                                            }}
+                                            onMouseDown={(e) => { e.preventDefault(); execCmd('fontName', font.val); setShowFontFamilyPicker(false); }}
                                             className="text-left px-3 py-2 hover:bg-gray-100 text-sm text-gray-700 w-full truncate border-b border-gray-50 last:border-0"
                                             style={{ fontFamily: font.val }}
                                         >
@@ -180,8 +171,7 @@ export const RichTextEditor = ({
                                 </div>
                             )}
                         </div>
-
-                        {/* Font Size Selector */}
+                        {/* Font Size */}
                         <div className="relative">
                             <button 
                                 onMouseDown={onToolMouseDown}
@@ -192,45 +182,35 @@ export const RichTextEditor = ({
                                 <IconType />
                                 <span className="text-[10px] text-gray-500">▼</span>
                             </button>
-                            
                             {showFontSizePicker && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-[100] w-[130px] flex flex-col max-h-[250px] overflow-y-auto">
+                                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded py-1 z-50 w-[130px] flex flex-col max-h-[250px] overflow-y-auto">
                                     {fontSizes.map(size => (
                                         <button
                                             key={size.val}
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                execCmd('fontSize', size.val);
-                                                setShowFontSizePicker(false);
-                                            }}
+                                            onMouseDown={(e) => { e.preventDefault(); execCmd('fontSize', size.val); setShowFontSizePicker(false); }}
                                             className="text-left px-3 py-1.5 hover:bg-gray-100 text-sm text-gray-700 w-full flex items-baseline gap-2 border-b border-gray-50 last:border-0"
                                         >
                                             <span className="text-gray-400 text-[10px] w-4">{size.val}</span>
-                                            <span style={{ fontSize: size.val === '1' ? '10px' : size.val === '2' ? '13px' : size.val === '3' ? '16px' : size.val === '4' ? '18px' : size.val === '5' ? '24px' : '28px' }}>
-                                                {size.label}
-                                            </span>
+                                            <span style={{ fontSize: size.val === '1' ? '10px' : size.val === '2' ? '13px' : size.val === '3' ? '16px' : size.val === '4' ? '18px' : size.val === '5' ? '24px' : '28px' }}>{size.label}</span>
                                         </button>
                                     ))}
                                 </div>
                             )}
                         </div>
                     </div>
-
-                    {/* Grup 2: Formatlama */}
+                    {/* Format */}
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
                         <button onMouseDown={onToolMouseDown} onClick={() => execCmd('bold')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Kalın"><IconBold/></button>
                         <button onMouseDown={onToolMouseDown} onClick={() => execCmd('italic')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="İtalik"><IconItalic/></button>
                         <button onMouseDown={onToolMouseDown} onClick={() => execCmd('underline')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Altı Çizili"><IconUnderline/></button>
                     </div>
-                    
-                    {/* Grup 3: Hizalama */}
+                    {/* Alignment */}
                     <div className="flex items-center gap-0.5 border-r border-gray-300 pr-1 mr-1">
                         <button onMouseDown={onToolMouseDown} onClick={() => execCmd('justifyLeft')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Sola Hizala"><IconAlignLeft/></button>
                         <button onMouseDown={onToolMouseDown} onClick={() => execCmd('justifyCenter')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Ortala"><IconAlignCenter/></button>
                         <button onMouseDown={onToolMouseDown} onClick={() => execCmd('justifyRight')} className="p-1.5 hover:bg-gray-200 rounded text-gray-700" title="Sağa Hizala"><IconAlignRight/></button>
                     </div>
-
-                    {/* Grup 4: Renk */}
+                    {/* Color */}
                     <div className="relative">
                         <button 
                             onMouseDown={onToolMouseDown}
@@ -242,18 +222,13 @@ export const RichTextEditor = ({
                             <div className="w-3 h-3 rounded-full border border-gray-300 bg-gradient-to-r from-red-500 via-green-500 to-blue-500"></div>
                             <span className="text-[10px] font-bold">▼</span>
                         </button>
-                        
                         {showColorPicker && (
-                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded p-2 z-[100] flex flex-col w-[130px]">
+                            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 shadow-xl rounded p-2 z-50 flex flex-col w-[130px]">
                                 <div className="grid grid-cols-4 gap-1 mb-2">
                                     {colors.map(color => (
                                         <button
                                             key={color.hex}
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                execCmd('foreColor', color.hex);
-                                                setShowColorPicker(false);
-                                            }}
+                                            onMouseDown={(e) => { e.preventDefault(); execCmd('foreColor', color.hex); setShowColorPicker(false); }}
                                             className="w-6 h-6 rounded-sm border border-gray-200 hover:scale-110 hover:border-gray-400 transition-all"
                                             style={{ backgroundColor: color.hex }}
                                             title={color.label}
@@ -261,11 +236,7 @@ export const RichTextEditor = ({
                                     ))}
                                 </div>
                                 <button
-                                    onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        execCmd('removeFormat');
-                                        setShowColorPicker(false);
-                                    }}
+                                    onMouseDown={(e) => { e.preventDefault(); execCmd('removeFormat'); setShowColorPicker(false); }}
                                     className="w-full text-xs text-center text-red-600 hover:bg-red-50 p-1 rounded border border-red-100"
                                 >
                                     Temizle
@@ -284,7 +255,7 @@ export const RichTextEditor = ({
                 className={`overflow-y-auto outline-none p-2 min-h-[56px] ${className} ${!value ? 'empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400' : ''}`}
                 {...{ "data-placeholder": placeholder }}
                 spellCheck={false}
-                style={{ minHeight: '80px' }} // Toolbar geldiği için biraz daha yüksek olsun
+                style={{ minHeight: '80px' }} 
             />
         </div>
     );
@@ -401,16 +372,37 @@ export const RiskHazard: React.FC<CommonProps & {
     aiHazardSuggestions: string[];
     isGeneratingHazards: boolean;
     onGenerateHazards: () => void;
-    // Removed textareaRef since we now use a RichTextEditor div
     handleSelectAciklama: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-    // Removed handleTextareaInput since we update directly via onChange
-}> = ({ risk, onUpdate, onToggleSpeech, activeSpeechTarget, tehlikeData, aiHazardSuggestions, isGeneratingHazards, onGenerateHazards, handleSelectAciklama }) => (
+    onEditPrompt?: () => void;
+}> = ({ risk, onUpdate, onToggleSpeech, activeSpeechTarget, tehlikeData, aiHazardSuggestions, isGeneratingHazards, onGenerateHazards, handleSelectAciklama, onEditPrompt }) => (
     <div className="space-y-2 mb-3 print-tehlike-container">
-        <div className="flex items-center mb-1">
-            <label className="block text-xs font-semibold mr-2">Tehlike Açıklaması:</label>
-            <button type="button" onClick={onGenerateHazards} disabled={isGeneratingHazards} className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-wait print:hidden">
-                {isGeneratingHazards ? <IconLoaderSmall /> : <IconLightbulb />}
-            </button>
+        {/* Header Line */}
+        <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+                <label className="block text-xs font-semibold text-gray-700">Tehlike Açıklaması:</label>
+                
+                {/* AI Button */}
+                <button
+                    type="button"
+                    onClick={onGenerateHazards}
+                    disabled={isGeneratingHazards}
+                    className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-wait print:hidden"
+                    title="Yapay Zeka ile Tehlike Önerileri Getir"
+                >
+                    {isGeneratingHazards ? <IconLoaderSmall /> : <IconLightbulb />}
+                    <span>AI Öneri</span>
+                </button>
+
+                 {/* Settings Button */}
+                <button
+                    type="button"
+                    onClick={onEditPrompt}
+                    className="flex items-center justify-center w-6 h-6 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 border border-gray-400 transition-colors shadow-sm print:hidden"
+                    title="AI Prompt Ayarları"
+                >
+                    <IconSettings />
+                </button>
+            </div>
         </div>
         <select onChange={handleSelectAciklama} className="w-full border border-gray-300 rounded px-2 py-2 text-sm print:hidden">
             <option value="">--- Hazır Listeden Ekle ---</option>
@@ -418,7 +410,6 @@ export const RiskHazard: React.FC<CommonProps & {
             {aiHazardSuggestions.length > 0 && <optgroup label="AI Önerileri">{aiHazardSuggestions.map((s, i) => <option key={`ai-${i}`} value={s}>{s}</option>)}</optgroup>}
         </select>
         <div className="relative print:flex-grow print:flex print:flex-col">
-            {/* Screen View: Wrapped in print:hidden to hide entire editor (border, toolbar, input) */}
             <div className="print:hidden w-full relative">
                 <RichTextEditor 
                     value={risk.tehlikeAciklama} 
@@ -431,7 +422,6 @@ export const RiskHazard: React.FC<CommonProps & {
                 </button>
             </div>
             
-            {/* Print View: Use dangerouslySetInnerHTML to render HTML content */}
             <div 
                 className="hidden print-twin print-tehlike-content w-full border border-gray-300 rounded px-2 py-2 text-sm min-h-[56px] bg-white"
                 dangerouslySetInnerHTML={{ __html: risk.tehlikeAciklama }}
@@ -520,7 +510,8 @@ export const RiskMeasures: React.FC<CommonProps & {
     riskIndex: number;
     shortenedTehlike: string;
     riskSeviyeBadgeColor: string;
-}> = ({ risk, onUpdate, onToggleSpeech, activeSpeechTarget, tehlikeData, isGeneratingMeasures, onGenerateMeasures, onShowInfo, onlemRefs, mevcutOnlemlerRef, handleTextareaInput, riskIndex, shortenedTehlike, riskSeviyeBadgeColor }) => {
+    onEditPrompt?: () => void;
+}> = ({ risk, onUpdate, onToggleSpeech, activeSpeechTarget, tehlikeData, isGeneratingMeasures, onGenerateMeasures, onShowInfo, onlemRefs, mevcutOnlemlerRef, handleTextareaInput, riskIndex, shortenedTehlike, riskSeviyeBadgeColor, onEditPrompt }) => {
     const onerilecekOnlemlerFields = [
         { field: 'eliminasyon', label: '1. Yok Etme (Eliminasyon)', placeholder: tehlikeData.dinamikOrnekler.eliminasyon },
         { field: 'ikame', label: '2. İkame (Değiştirme)', placeholder: tehlikeData.dinamikOrnekler.ikame },
@@ -549,6 +540,14 @@ export const RiskMeasures: React.FC<CommonProps & {
                          <button type="button" onClick={() => onShowInfo('aiControlMeasures')} className="text-blue-600 hover:text-blue-800"><IconHelp /></button>
                          <button type="button" onClick={onGenerateMeasures} disabled={isGeneratingMeasures} className="text-xs font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-wait px-3 py-1 flex items-center gap-1.5">
                             {isGeneratingMeasures ? <IconLoaderSmall /> : <IconLightbulb />} <span>Tümünü Doldur</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onEditPrompt}
+                            className="flex items-center justify-center w-6 h-6 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 border border-gray-400 transition-colors shadow-sm"
+                            title="AI Prompt Ayarları"
+                        >
+                            <IconSettings />
                         </button>
                     </div>
                 </div>

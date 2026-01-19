@@ -6,14 +6,19 @@ import { blobToBase64 } from '../utils/helpers';
 
 // API Anahtarını güvenli bir şekilde al
 const getApiKey = (): string => {
-    // 1. Mevcut Platform (Otomatik Enjeksiyon)
-    // Bu platformda process.env.API_KEY build sırasında otomatik tanımlanır.
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-        return process.env.API_KEY;
+    // 1. Önce localStorage'dan kontrol et (kullanıcı tarafından girilmiş anahtar)
+    try {
+        const cachedKey = localStorage.getItem('gemini_api_key');
+        if (cachedKey) {
+            return cachedKey;
+        }
+    } catch (e) {
+        // localStorage erişimi başarısız olursa sessizce geç
     }
-    
+
     // 2. Lokal Geliştirme (Vite .env Desteği)
-    // Projeyi indirip lokalde çalıştıranlar için .env dosyasındaki VITE_API_KEY okunur.
+    // Sadece geliştirme ortamında .env dosyasındaki VITE_API_KEY okunur.
+    // ÖNEMLİ: Production build'lerinde API anahtarı ASLA gömülmez!
     try {
         // @ts-ignore - TypeScript import.meta'yı bazen tanımaz, bu yüzden ignore ediyoruz.
         if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
@@ -25,6 +30,31 @@ const getApiKey = (): string => {
     }
     
     return '';
+};
+
+// API anahtarını localStorage'a kaydet
+export const setApiKey = (key: string): void => {
+    try {
+        if (key && key.trim()) {
+            localStorage.setItem('gemini_api_key', key.trim());
+        }
+    } catch (e) {
+        console.error('API anahtarı kaydedilemedi:', e);
+    }
+};
+
+// API anahtarını localStorage'dan sil
+export const clearApiKey = (): void => {
+    try {
+        localStorage.removeItem('gemini_api_key');
+    } catch (e) {
+        console.error('API anahtarı silinemedi:', e);
+    }
+};
+
+// API anahtarının mevcut olup olmadığını kontrol et
+export const hasApiKey = (): boolean => {
+    return getApiKey() !== '';
 };
 
 const getAI = () => new GoogleGenAI({ apiKey: getApiKey() });

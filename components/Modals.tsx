@@ -1,8 +1,130 @@
 
 import React, { useState, useEffect } from 'react';
-import { IconX, IconTrash, IconMaximize } from './Icons';
+import { IconX, IconTrash, IconMaximize, IconKey } from './Icons';
 import { FileRecord, ModalState } from '../types';
 import { bilgiIcerikleri } from '../constants';
+
+// API Key Modal Component
+interface ApiKeyModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (apiKey: string) => void;
+    required?: boolean;
+}
+
+export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSave, required = false }) => {
+    const [apiKey, setApiKey] = useState('');
+    const [error, setError] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleSave = () => {
+        if (!apiKey.trim()) {
+            setError('API anahtarı boş olamaz');
+            return;
+        }
+        
+        // Basic length check - Google API keys are typically 39 characters
+        if (apiKey.trim().length < 30) {
+            setError('API anahtarı çok kısa görünüyor. Lütfen geçerli bir Google Gemini API anahtarı girin.');
+            return;
+        }
+
+        onSave(apiKey.trim());
+        setApiKey('');
+        setError('');
+        onClose();
+    };
+
+    const handleSkip = () => {
+        setApiKey('');
+        setError('');
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[200] p-4 print:hidden">
+            <div className="bg-white rounded-lg w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                            <IconKey className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800">Google Gemini API Anahtarı</h3>
+                    </div>
+                    
+                    <div className="mb-4">
+                        <p className="text-sm text-gray-600 mb-3">
+                            AI özelliklerini kullanabilmek için Google Gemini API anahtarınızı girin. 
+                            Anahtarınız tarayıcınızda güvenli bir şekilde saklanacaktır.
+                        </p>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                            <p className="text-xs text-blue-800 font-semibold mb-1">🔑 API Anahtarı Nasıl Alınır?</p>
+                            <ol className="text-xs text-blue-700 space-y-1 ml-4 list-decimal">
+                                <li><a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">Google AI Studio</a>'ya gidin</li>
+                                <li>"Get API Key" butonuna tıklayın</li>
+                                <li>Ücretsiz API anahtarınızı oluşturun</li>
+                                <li>Anahtarı kopyalayıp aşağıya yapıştırın</li>
+                            </ol>
+                        </div>
+
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            API Anahtarı (İsteğe Bağlı)
+                        </label>
+                        <input
+                            type="password"
+                            value={apiKey}
+                            onChange={(e) => {
+                                setApiKey(e.target.value);
+                                setError('');
+                            }}
+                            placeholder="AIzaSy..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                            autoFocus
+                            onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleSave();
+                                }
+                            }}
+                        />
+                        
+                        {error && (
+                            <p className="text-xs text-red-600 mt-2 font-semibold">{error}</p>
+                        )}
+                    </div>
+
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                        <p className="text-xs text-yellow-800">
+                            <strong>⚠️ Güvenlik Notu:</strong> API anahtarınız sadece tarayıcınızda saklanır ve hiçbir sunucuya gönderilmez.
+                        </p>
+                    </div>
+                    
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                        <p className="text-xs text-gray-700">
+                            <strong>💡 İpucu:</strong> API anahtarı olmadan da uygulamayı kullanabilirsiniz. Sadece AI destekli özellikler (öneri oluşturma, otomatik doldurma vb.) çalışmayacaktır. Daha sonra header'daki 🔑 butonu ile API anahtarınızı ekleyebilirsiniz.
+                        </p>
+                    </div>
+                </div>
+                
+                <div className="bg-gray-50 px-6 py-3 flex justify-end items-center gap-3 rounded-b-lg">
+                    <button 
+                        onClick={handleSkip} 
+                        className="px-4 py-2 text-sm font-semibold bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                    >
+                        Daha Sonra
+                    </button>
+                    <button 
+                        onClick={handleSave}
+                        className="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 interface InfoModalProps {
   infoKey: string | null;

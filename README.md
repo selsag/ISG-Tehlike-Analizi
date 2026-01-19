@@ -48,15 +48,23 @@ yarn install
 
 Uygulamanın AI özelliklerinin çalışabilmesi için geçerli bir **Google Gemini API** anahtarına ihtiyacınız vardır.
 
+#### Yerel Geliştirme İçin:
+
 1.  [Google AI Studio](https://aistudio.google.com/) adresine gidin ve ücretsiz bir API anahtarı (API Key) oluşturun.
-2.  Projenin ana dizininde (package.json dosyasının olduğu yer) `.env` adında yeni bir dosya oluşturun.
-3.  `.env` dosyasının içine aşağıdaki satırı ekleyin ve `AIzaSy...` kısmını kendi anahtarınızla değiştirin:
+2.  Projenin ana dizininde (package.json dosyasının olduğu yer) `.env.example` dosyasını `.env` olarak kopyalayın:
+    ```bash
+    cp .env.example .env
+    ```
+3.  `.env` dosyasını açın ve `VITE_API_KEY` değerini kendi API anahtarınızla değiştirin:
+    ```env
+    VITE_API_KEY=your_actual_api_key_here
+    ```
 
-```env
-VITE_API_KEY=AIzaSySizinGizliAnahtarinizBurayaYazilacak
-```
-
-> ⚠️ **Uyarı:** `.env` dosyanızı asla GitHub'a yüklemeyin veya başkalarıyla paylaşmayın. Projedeki `.gitignore` dosyası bu dosyanın yüklenmesini otomatik olarak engeller.
+> ⚠️ **GÜVENLİK UYARISI:** 
+> - `.env` dosyanızı **ASLA** GitHub'a yüklemeyin veya başkalarıyla paylaşmayın!
+> - Projedeki `.gitignore` dosyası bu dosyanın yüklenmesini otomatik olarak engeller.
+> - Production build'lerinde API anahtarı gömülmez. API anahtarları sadece yerel geliştirme içindir.
+> - GitHub Pages veya başka public hosting'e deploy ederken API anahtarı içeren build'ler ASLA yüklenmemelidir.
 
 ### 5. Uygulamayı Başlatın
 
@@ -79,3 +87,26 @@ Terminalde verilen yerel adrese (genellikle `http://localhost:5173`) tarayıcın
 ## 📝 Lisans
 
 Bu proje MIT lisansı altında sunulmaktadır.
+
+---
+
+## 🔒 Güvenlik Notları
+
+### API Anahtarı Güvenliği
+
+Bu proje, Google Gemini API kullanmaktadır. API anahtarlarının güvenliği son derece önemlidir:
+
+1. **Yerel Geliştirme:** API anahtarlarınızı `.env` dosyasında saklayın ve bu dosyanın `.gitignore`'a eklendiğinden emin olun.
+
+2. **Production Deployment:** Bu uygulama client-side (istemci tarafı) bir React uygulamasıdır. API anahtarlarını production build'lerine gömmek GÜVENLİ DEĞİLDİR çünkü herkes tarayıcıda JavaScript kodunu inceleyebilir.
+
+3. **Önerilen Güvenli Yaklaşımlar:**
+   - Kullanıcıların kendi API anahtarlarını uygulama arayüzünden girmelerini sağlayın
+   - Veya bir backend API servisi oluşturun ve API anahtarlarını sunucu tarafında saklayın
+   - API anahtarlarınıza kısıtlamalar ekleyin (Google Cloud Console'dan)
+
+4. **Asla Yapmayın:**
+   - API anahtarlarını kod içine (hardcode) yazmayın
+   - API anahtarlarını build dosyalarına gömmeyin
+   - `.env` dosyasını Git'e commit etmeyin
+   - API anahtarları içeren build'leri GitHub Pages'e deploy etmeyin

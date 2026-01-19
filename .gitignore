@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local-only guidance files (do NOT commit)
+COPILOT.md
+mustread.md
+
+# Local-only prompts file
+girilecek_promptlar.txt

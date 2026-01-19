@@ -10,7 +10,7 @@
             "name": "Launch Chrome against Vite (http://127.0.0.1:3001)",
             "preLaunchTask": "dev",
             "runtimeExecutable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-            "userDataDir": false,
+            "userDataDir": "${workspaceFolder}\\.vscode\\chrome-debug-profile",
             "runtimeArgs": ["--auto-open-devtools-for-tabs", "--disable-extensions"],
             "url": "http://127.0.0.1:3001",
             "webRoot": "${workspaceFolder}"

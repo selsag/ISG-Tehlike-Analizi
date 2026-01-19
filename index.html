@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Risk Değerlendirme Formu (Fine-Kinney)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 5mm 10mm; /* Kenar boşluklarını biraz optimize ettim */
+            }
+
+            html, body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                /* MOBİL FIX: Sayfa genişliğini masaüstü gibi davranmaya zorla */
+                min-width: 1024px !important; 
+                width: 1024px !important;
+                max-width: 1024px !important;
+                font-size: 12px !important; /* Temel yazı boyutu */
+                overflow-x: visible !important;
+                height: auto !important;
+            }
+
+            /* --- TAILWIND RESPONSIVE SINIFLARINI YAZDIRMADA PC MODUNA ZORLA --- */
+            /* Bu bölüm, mobildeyken bile 'md:' (masaüstü) sınıflarının çalışmasını sağlar */
+            
+            /* Grid Sütunları */
+            .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+            .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+            .md\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+            .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+            /* Boşluklar ve Padding */
+            .md\:gap-4 { gap: 1rem !important; }
+            .md\:p-4 { padding: 1rem !important; }
+            .md\:p-6 { padding: 1.5rem !important; }
+            .md\:mb-6 { margin-bottom: 1.5rem !important; }
+            
+            /* Yazı Boyutları */
+            .md\:text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+            .md\:text-base { font-size: 1rem !important; line-height: 1.5rem !important; }
+            .md\:text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+            .md\:text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+
+            /* Görünürlük */
+            .print\:hidden { display: none !important; }
+            .print\:block { display: block !important; }
+            .print\:table-cell { display: table-cell !important; }
+            .print\:break-inside-avoid { break-inside: avoid !important; }
+            
+            /* -- YAZDIRMA İYİLEŞTİRMELERİ: TAM SAYFA RİSK KARTI -- */
+            
+            /* Risk Kartı A4 Sayfasını Doldursun */
+            .risk-card {
+                min-height: 270mm !important; /* A4 yüksekliği (~297mm) - kenar boşlukları */
+                height: auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                
+                /* HER RİSK YENİ SAYFADA BAŞLASIN */
+                break-after: page !important;
+                page-break-after: always !important;
+                
+                /* DÜZELTME: Kart içeriği çok uzunsa sayfa içinde bölünebilsin */
+                break-inside: auto !important; 
+                page-break-inside: auto !important;
+                
+                margin-bottom: 0 !important;
+                border-bottom: 2px solid #ccc !important;
+            }
+
+            /* Kart İçeriği Esnek Olsun */
+            .risk-card-content {
+                display: flex !important;
+                flex-direction: column !important;
+                flex-grow: 1 !important;
+                padding: 10px !important;
+            }
+
+            /* Sol Kısım (Tehlike Tanımı) Büyüyebilsin */
+            .risk-problem-section {
+                 display: flex !important;
+                 flex-direction: column !important;
+                 flex-grow: 1 !important;
+                 /* DÜZELTME: Uzun metinlerde bölümün bölünmesine izin ver */
+                 break-inside: auto !important; 
+            }
+
+            /* Sağ Kısım (Önlemler) Sabit Kalsın ama alta yapışsın */
+            .risk-solution-section {
+                 /* DÜZELTME: Uzun metinlerde bölümün bölünmesine izin ver */
+                 break-inside: auto !important; 
+                 margin-top: auto !important; /* İçerik azsa en alta it */
+            }
+            
+            .print-break-before-always {
+                 break-before: page !important;
+            }
+
+            /* TEHLİKE AÇIKLAMASI ÖZEL STİLİ */
+            /* Kapsayıcı büyüsün */
+            .print-tehlike-container {
+                display: flex !important;
+                flex-direction: column !important;
+                flex-grow: 1 !important;
+                min-height: 50mm !important; /* En az bu kadar yer kaplasın */
+                /* DÜZELTME: Konteyner bölünebilsin */
+                break-inside: auto !important; 
+            }
+            
+            /* Metin kutusu büyüsün ve çizgili olsun */
+            .print-tehlike-content {
+                display: block !important;
+                flex-grow: 1 !important;
+                width: 100%;
+                white-space: pre-wrap;
+                /* Defter Çizgisi Efekti */
+                background-image: repeating-linear-gradient(transparent, transparent 29px, #e5e7eb 30px) !important;
+                background-size: 100% 30px !important;
+                line-height: 30px !important;
+                padding-top: 0 !important;
+                margin-top: 5px !important;
+            }
+
+            /* MEVCUT ve ÖNERİLECEK ÖNLEMLER İÇİN MİNİMUM YÜKSEKLİK */
+            /* Boş veya az olsa bile 3 satır yer kaplasın */
+            .print-twin-collapsible {
+                display: block !important;
+                min-height: 6rem !important; /* ~3-4 satır */
+                background-color: #fdfdfd !important;
+            }
+            
+            /* --- SONUÇ SAYFASI (GENEL DEĞERLENDİRME + İMZA) --- */
+            .print-summary-page {
+                display: flex !important;
+                flex-direction: column !important;
+                min-height: 270mm !important; /* Tam sayfa A4 */
+                break-before: page !important;
+                page-break-before: always !important;
+                break-inside: avoid !important;
+            }
+
+            /* Genel Değerlendirme Alanı */
+            #print-genel-degerlendirme {
+                display: block !important;
+                flex-grow: 1 !important; /* Kalan boşluğu doldur */
+                min-height: 100mm !important; /* Makul bir minimum yükseklik */
+                width: 100%;
+                border: 1px solid #b0b0b0 !important;
+                border-radius: 4px;
+                padding: 10px;
+                background-color: #fff !important;
+                white-space: pre-wrap;
+            }
+            
+            .print-signature-section {
+                margin-top: auto !important; /* En alta it */
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+            }
+            
+            /* Yasal uyarıyı bölme */
+            .print-legal-warning {
+                 break-inside: avoid !important;
+                 page-break-inside: avoid !important;
+            }
+
+            /* -- YAZDIRMA İYİLEŞTİRMELERİ SONU -- */
+
+            .risk-card-content.collapsed-in-print {
+                display: flex !important; /* Print'te her zaman açık ve flex */
+            }
+            #risk-ekibi-listesi.collapsed-in-print {
+                display: grid !important;
+            }
+            #risk-ekibi-listesi {
+                display: grid !important;
+            }
+			.auto-grow-textarea {
+                display: none !important; 
+            }
+            .print-twin {
+                display: block !important; 
+            }
+
+            /* --- FOTOĞRAF EKLERİ (Appendix) --- */
+            #photo-appendix {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                page-break-before: always !important;
+            }
+        }
+        .toggle-icon-collapsed { 
+            transform: rotate(180deg); 
+        }
+        .toggle-icon {
+            transition: transform 0.2s ease-in-out;
+        }
+    </style>
+
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.553.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.0",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/ISG-Tehlike-Analizi/assets/index-hitBZvcC.js"></script>
+</head>
+  <body class="bg-gray-100">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+</body>
+</html>

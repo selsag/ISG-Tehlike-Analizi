@@ -4,7 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Risk Değerlendirme Formu (Fine-Kinney)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      (async function(){
+        try {
+          const res = await fetch('https://cdn.tailwindcss.com');
+          if (!res.ok) throw new Error('Tailwind CDN fetch failed: ' + res.status);
+          const code = await res.text();
+          try {
+            // Evaluate in global scope safely
+            (0, eval)(code);
+            console.info('[init] Tailwind CDN loaded');
+          } catch (execErr) {
+            console.warn('[init] Tailwind execution failed, applying fallback styles', execErr);
+            const style = document.createElement('style');
+            style.textContent = '/* Tailwind fallback */ body{font-family:system-ui,-apple-system,Segoe UI,Roboto,\"Helvetica Neue\",Arial} .btn{padding:.5rem 1rem;border-radius:.375rem;background:#3b82f6;color:white}';
+            document.head.appendChild(style);
+          }
+        } catch (err) {
+          console.warn('[init] Could not load Tailwind CDN, applying fallback styles', err);
+          const style = document.createElement('style');
+          style.textContent = '/* Tailwind fallback */ body{font-family:system-ui,-apple-system,Segoe UI,Roboto,\"Helvetica Neue\",Arial} .btn{padding:.5rem 1rem;border-radius:.375rem;background:#3b82f6;color:white}';
+          document.head.appendChild(style);
+        }
+      })();
+    </script>
     <style>
         @media print {
             @page {
